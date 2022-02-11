@@ -57,14 +57,16 @@ function create_ecs_users_and_policies() {
 	# Create general IAM User with no permissions
 	echo "Creating new IAM users with no permission"
 	for iamUser in "${iam_users[@]}"; do
-			curl -ks -X POST "https://ecs.demo.local:4443/iam?UserName=$iamUser&Action=CreateUser" -H "X-SDS-AUTH-TOKEN: ${ecs_token}"
+			curl -ks -X POST "https://ecs.demo.local:4443/iam?UserName=$iamUser&Action=CreateUser" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" >> ~/log_iam_user_create.txt
+			echo "User created: ${iamUser}"
 	done
 	echo "Created Users"
 
 	# Give users permission via IAM policies
 	echo "Adding permissions to IAM users"
 	for index in ${!iam_users[*]}; do
-			curl -ks -X POST "https://ecs.demo.local:4443/iam?UserName=${iam_users[$index]}&PolicyArn=${iam_policies[$index]}&Action=AttachUserPolicy" -H "X-SDS-AUTH-TOKEN: ${ecs_token}"
+			curl -ks -X POST "https://ecs.demo.local:4443/iam?UserName=${iam_users[$index]}&PolicyArn=${iam_policies[$index]}&Action=AttachUserPolicy" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" >> ~/log/iam_add_permission
+			echo "Permission added: ${index}"
 	done
 	echo "Permissions added"
 
@@ -72,8 +74,7 @@ function create_ecs_users_and_policies() {
 	# xmlstarlet package will need to be installed on client machine from CentOS EPEL repository
 	echo " Creating Admin Users Access/Secret Keys"
 	for iamUser in "${iam_users[@]:0:2}"; do
-			#curl -ks -X POST "https://ecs.demo.local:4443/iam?UserName=$iamUser&Action=CreateAccessKey" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" | xmlstarlet sel -t -c "ns2:CreateAccessKeyResponse/CreateAccessKeyResult/AccessKey" >> cred.xml
-			curl -ks -X POST "https://ecs.demo.local:4443/iam?UserName=$iamUser&Action=CreateAccessKey" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" >> ~/ecs_cred.txt
+			curl -ks -X POST "https://ecs.demo.local:4443/iam?UserName=$iamUser&Action=CreateAccessKey" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" > ~/creds_${iamUser}.txt
 	done
 	echo "Admins have keys"
 
@@ -140,12 +141,13 @@ function register_pscale_plugin() {
 	echo "Plugin registered"
 }
 
-install_packages()
-login_ecs()
-create_ecs_users_and_policies()
-configure_vault_server()
-start_vault_server()
-init_vault_server()
-unseal_and_login_vault()
-register_ecs_plugin()
-register_pscale_plugin()
+install_packages
+login_ecs
+create_ecs_users_and_policies
+logout_ecs
+configure_vault_server
+start_vault_server
+init_vault_server
+unseal_and_login_vault
+register_ecs_plugin
+register_pscale_plugin
