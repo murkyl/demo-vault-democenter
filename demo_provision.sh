@@ -1,6 +1,6 @@
 #!/bin/bash
 
-read -r -d '' USAGE <<- 'EOF'
+IFS='' read -r -d '' USAGE << EOF
 Usage: demo_provision.sh <operation>
 
 Valid parameters:
@@ -93,15 +93,15 @@ function create_ecs_users_and_policies() {
 
 	# Give users permission via IAM policies
 	echo "Adding permissions to IAM users"
-	rm -f ~/log/iam_add_permission.txt
+	rm -f ~/log_iam_add_permission.txt
 	for index in ${!iam_users[*]}; do
-		curl -ks -X POST "https://ecs.demo.local:4443/iam?UserName=${iam_users[$index]}&PolicyArn=${iam_policies[$index]}&Action=AttachUserPolicy" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" >> ~/log/iam_add_permission.txt
+		curl -ks -X POST "https://ecs.demo.local:4443/iam?UserName=${iam_users[$index]}&PolicyArn=${iam_policies[$index]}&Action=AttachUserPolicy" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" >> ~/log_iam_add_permission.txt
 		echo "Permission added: ${index}"
 	done
 	echo "Permissions added"
 
 	# Create Access Key for Users
-	echo " Creating Admin Users Access/Secret Keys"
+	echo "Creating Admin Users Access/Secret Keys"
 	for iamUser in "${iam_users[@]:0:2}"; do
 		curl -ks -X POST "https://ecs.demo.local:4443/iam?UserName=$iamUser&Action=CreateAccessKey" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" > ~/creds_${iamUser}.txt
 		sed -Eie "s/.*AccessKeyId>(.*)<\/Access.*SecretAccessKey>(.*)<\/Secret.*/\1 \2/" ~/creds_${iamUser}.txt
@@ -111,8 +111,9 @@ function create_ecs_users_and_policies() {
 
 	# Create Roles RoleDocument is URL encoded
 	echo "Creating an IAM Role for IAM-User1"
-	curl -ks --data-urlencode "AssumeRolePolicyDocument@rolepolicy.json" --data "RoleName=${ecs_role_name}" --data "Action=CreateRole" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" "https://ecs.demo.local:4443/iam?"
-	curl -ks -X POST "https://ecs.demo.local:4443/iam?PolicyArn=${iam_policies[@]:0:2}&RoleName=${ecs_role_name}&Action=AttachRolePolicy" -H "X-SDS-AUTH-TOKEN: ${ecs_token}"
+	rm -f ~/log_create_role.txt
+	curl -ks --data-urlencode "AssumeRolePolicyDocument@rolepolicy.json" --data "RoleName=${ecs_role_name}" --data "Action=CreateRole" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" "https://ecs.demo.local:4443/iam?" >> ~/log_create_role.txt
+	curl -ks -X POST "https://ecs.demo.local:4443/iam?PolicyArn=${iam_policies[@]:0:2}&RoleName=${ecs_role_name}&Action=AttachRolePolicy" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" >> ~/log_create_role.txt
 	echo "Role created"
 }
 
@@ -173,8 +174,9 @@ function register_pscale_plugin() {
 }
 
 if [ $# -eq 0 ]; then
-	echo $USAGE
+	echo "$USAGE"
 	exit 1
+fi
 
 case $1 in
 	all)
@@ -215,8 +217,10 @@ case $1 in
 	register_ecs_plugin)
 		register_ecs_plugin
 		;;
-	register_pscale_plugin
+	register_pscale_plugin)
 		register_pscale_plugin
 		;;
-		echo 
 	*)
+		echo "$USAGE"
+		;;
+esac
