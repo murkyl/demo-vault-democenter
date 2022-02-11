@@ -248,8 +248,8 @@ function config_ecs_plugin() {
 	echo "Configure ECS plugin"
 	# The user is actually the access key and the password is the secret generated in the init_ecs function
 	vault write ${ecs_vault_endpoint}/config/root \
-		user=`cat ~/creds_${iam_users[$index][0]}.txt | awk '{print $1}'` \
-		password=`cat ~/${iam_users[$index][0]}.txt | awk '{print $2}'` \
+		user=`cat ~/creds_${iam_users[0]}.txt | awk '{print $1}'` \
+		password=`cat ~/${iam_users[0]}.txt | awk '{print $2}'` \
 		endpoint=${ecs_endpoint}:${ecs_mgmt_port} \
 		bypass_cert_check=true
 	vault read ${ecs_vault_endpoint}/config/root
@@ -259,13 +259,13 @@ function config_ecs_demo() {
 	# Configure the demo Vault endpoints
 	echo "Configuring ECS demo user endpoints"
 	unseal_and_login_vault > /dev/null
-	vault write ${ecs_vault_endpoint}/roles/predefined/${iam_users[$index][1]} namespace=ns1
+	vault write ${ecs_vault_endpoint}/roles/predefined/${iam_users[1]} namespace=ns1
 	vault write ${ecs_vault_endpoint}/roles/dynamic/${ecs_dynamic_role_1} namespace=ns1 policy=ns:IAMReadOnlyAccess
 	echo "Demo endpoints configured"
 	echo "Usable endpoints"
-	echo "    ${ecs_vault_endpoint}/creds/predefined/${iam_users[$index][1]}"
+	echo "    ${ecs_vault_endpoint}/creds/predefined/${iam_users[1]}"
 	echo "    ${ecs_vault_endpoint}/creds/dynamic/${ecs_dynamic_role_1}"
-	echo "    ${ecs_vault_endpoint}/sts/predefined/${iam_users[$index][2]} role_arn=urn:ecs:iam::ns1:role/${ecs_role_name}"
+	echo "    ${ecs_vault_endpoint}/sts/predefined/${iam_users[2]} role_arn=urn:ecs:iam::ns1:role/${ecs_role_name}"
 }
 
 function register_pscale_plugin() {
