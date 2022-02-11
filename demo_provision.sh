@@ -132,6 +132,7 @@ function configure_vault_server() {
 	grep -q tls_key_file /etc/vault.d/vault.hcl
 	if [ $? -eq 1 ]; then
 		sed -E -i "/tls_key_file.*/a\\  tls_disable = 1" /etc/vault.d/vault.hcl
+	fi
 	echo "Vault server configured"
 }
 
