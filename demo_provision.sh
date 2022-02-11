@@ -76,7 +76,7 @@ function login_ecs() {
 function logout_ecs() {
 	# Log out of Management API
 	echo "Logging out from ECS"
-	curl -ks https://ecs.demo.local:4443/logout -H "X-SDS-AUTH-TOKEN: ${ecs_token}"
+	curl -ks https://ecs.demo.local:4443/logout -H "X-SDS-AUTH-TOKEN: ${ecs_token}" > /dev/null
 	unset ecs_token
 }
 
