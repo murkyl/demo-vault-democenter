@@ -53,7 +53,7 @@ pscale_plugin_name="${PSCALE_PLUGIN_NAME:=vault-plugin-secrets-onefs}"
 pscale_vault_endpoint="${PSCALE_VAULT_ENDPOINT:=pscale}"
 # VAULT_ADDR needs to be in the shell's environment and this line will be added to the user's ~/.bash_profile
 # The user will have to reload their profile to have it take effect after the script runs. e.g. source ~/.bash_profile
-VAULT_ADDR="${VAULT_ADDR:=http://127.0.0.1:8200}"
+export VAULT_ADDR="${VAULT_ADDR:=http://127.0.0.1:8200}"
 
 # Define ECS variables
 ecs_username="root"
@@ -312,6 +312,8 @@ case $1 in
 		logout_ecs
 		configure_vault
 		start_vault
+		echo "Sleeping for 2 seconds waiting for Vault to start"
+		sleep 2
 		init_vault
 		unseal_and_login_vault
 		register_ecs_plugin
