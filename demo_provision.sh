@@ -27,6 +27,7 @@ EOF
 
 # Define common variables with defaults. You can override these from the shell by setting the environment variables appropriately
 vault_ver="${VAULT_VER:=vault-1.7.3}"
+vault_cfg_file="/etc/vault.d/vault.hcl"
 ecs_endpoint="${ECS_ENDPOINT:=ecs.demo.local}"
 ecs_plugin_ver="${ECS_PLUGIN_VER:=0.4.3}"
 ecs_plugin_name="vault-plugin-secrets-objectscale"
@@ -43,6 +44,7 @@ VAULT_ADDR="http://127.0.0.1:8200"
 ecs_username="root"
 ecs_password="Password123!"
 ecs_role_name="admins"
+ecs_role_policy_file="role_iam-user1.json"
 #ecs_token is exported to the environment holding the current authentication token
 
 # Define PowerScale variables
@@ -99,7 +101,7 @@ function create_ecs_users_and_policies() {
 	rm -f ~/log_iam_user_create.txt
 	for iamUser in "${iam_users[@]}"; do
 		curl -ks -X POST "https://${ecs_endpoint}:4443/iam?UserName=$iamUser&Action=CreateUser" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" >> ~/log_iam_user_create.txt
-		echo "" >> ~/log_iam_user_create.txt
+		echo -e "\n" >> ~/log_iam_user_create.txt
 		echo "User created: ${iamUser}"
 	done
 	echo "Created Users"
@@ -109,6 +111,7 @@ function create_ecs_users_and_policies() {
 	rm -f ~/log_iam_add_permission.txt
 	for index in ${!iam_users[*]}; do
 		curl -ks -X POST "https://${ecs_endpoint}:4443/iam?UserName=${iam_users[$index]}&PolicyArn=${iam_policies[$index]}&Action=AttachUserPolicy" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" >> ~/log_iam_add_permission.txt
+		echo -e "\n" >> ~/log_iam_add_permission.txt
 		echo "Permission added: ${index}"
 	done
 	echo "Permissions added"
@@ -125,7 +128,8 @@ function create_ecs_users_and_policies() {
 	# Create Roles RoleDocument is URL encoded
 	echo "Creating an IAM Role for IAM-User1"
 	rm -f ~/log_create_role.txt
-	curl -ks --data-urlencode "AssumeRolePolicyDocument@rolepolicy.json" --data "RoleName=${ecs_role_name}" --data "Action=CreateRole" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" "https://${ecs_endpoint}:4443/iam?" >> ~/log_create_role.txt
+	curl -ks --data-urlencode "AssumeRolePolicyDocument@${ecs_role_policy_file}" --data "RoleName=${ecs_role_name}" --data "Action=CreateRole" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" "https://${ecs_endpoint}:4443/iam?" >> ~/log_create_role.txt
+	echo -e "\n" >> ~/log_create_role.txt
 	curl -ks -X POST "https://${ecs_endpoint}:4443/iam?PolicyArn=${iam_policies[@]:0:2}&RoleName=${ecs_role_name}&Action=AttachRolePolicy" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" >> ~/log_create_role.txt
 	echo "Role created"
 }
@@ -135,15 +139,21 @@ function configure_vault_server() {
 	echo "Configuring Vault server"
 	grep -q api_addr /etc/vault.d/vault.hcl
 	if [ $? -eq 1 ]; then
-		echo "api_addr = \"http://127.0.0.1:8200\"" >> /etc/vault.d/vault.hcl
+		echo "api_addr = \"http://127.0.0.1:8200\"" >> ${vault_cfg_file}
+	else
+		echo "api_addr already set in ${vault_cfg_file} file"
 	fi
 	grep -q plugin_directory /etc/vault.d/vault.hcl
 	if [ $? -eq 1 ]; then
-		echo "plugin_directory = \"/opt/vault/plugins\"" >> /etc/vault.d/vault.hcl
+		echo "plugin_directory = \"/opt/vault/plugins\"" >> ${vault_cfg_file}
+	else
+		echo "plugin_directory already set in ${vault_cfg_file} file"
 	fi
-	grep -q tls_key_file /etc/vault.d/vault.hcl
+	grep -q tls_disable /etc/vault.d/vault.hcl
 	if [ $? -eq 1 ]; then
-		sed -E -i "/tls_key_file.*/a\\  tls_disable = 1" /etc/vault.d/vault.hcl
+		sed -E -i "/tls_key_file.*/a\\  tls_disable = 1" ${vault_cfg_file}
+	else
+		echo "tls_disable already set in ${vault_cfg_file} file"
 	fi
 	echo "Vault server configured"
 }
