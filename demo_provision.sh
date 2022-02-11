@@ -148,14 +148,14 @@ function create_ecs_users_and_policies() {
 
 	# Create Access Key for Users
 	echo "Creating Admin User Access Key and Secret Keys"
-	for iamUser in "${iam_users[*]}"; do
+	for index in "${iam_users[*]}"; do
 		curl -ks -X \
 			POST \
-			"${ecs_endpoint}:${ecs_mgmt_port}/iam?UserName=$iamUser&Action=CreateAccessKey" \
+			"${ecs_endpoint}:${ecs_mgmt_port}/iam?UserName=${iam_users[$index]}&Action=CreateAccessKey" \
 			-H "X-SDS-AUTH-TOKEN: ${ecs_token}" \
-			> ~/creds_${iamUser}.txt
-		sed -E -i "s/.*AccessKeyId>(.*)<\/Access.*SecretAccessKey>(.*)<\/Secret.*/\1 \2/" ~/creds_${iamUser}.txt
-		echo "Key created: ${iamUser}"
+			> ~/creds_${iam_users[$index]}.txt
+		sed -E -i "s/.*AccessKeyId>(.*)<\/Access.*SecretAccessKey>(.*)<\/Secret.*/\1 \2/" ~/creds_${iam_users[$index]}.txt
+		echo "Key created: ${iam_users[$index]}"
 	done
 	echo "User keys created"
 
