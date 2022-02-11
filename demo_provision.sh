@@ -142,7 +142,7 @@ function create_ecs_users_and_policies() {
 			-H "X-SDS-AUTH-TOKEN: ${ecs_token}" \
 			>> ~/log_iam_add_permission.txt
 		echo -e "\n" >> ~/log_iam_add_permission.txt
-		echo "Permission added: ${index}"
+		echo "Permission added: ${iam_users[$index]}"
 	done
 	echo "Permissions added"
 
