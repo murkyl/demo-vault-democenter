@@ -56,7 +56,7 @@ iam_policies=("urn:ecs:iam:::policy/IAMFullAccess" "urn:ecs:iam:::policy/ECSS3Fu
 function install_packages() {
 	# Install extra packages
 	echo "Installing additional required packages"
-	yum install -y yum-utils aws-cli
+	yum install -y yum-utils awscli
 	yum-config-manager --add-repo https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo
 	yum install -y ${vault_ver}
 	mkdir /opt/vault/plugins
