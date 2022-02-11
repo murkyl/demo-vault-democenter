@@ -121,9 +121,17 @@ function create_ecs_users_and_policies() {
 function configure_vault_server() {
 	# Configure Vault server
 	echo "Configuring Vault server"
-	echo "api_addr = \"http://127.0.0.1:8200\"" >> /etc/vault.d/vault.hcl
-	echo "plugin_directory = \"/opt/vault/plugins\"" >> /etc/vault.d/vault.hcl
-	sed -E -i "/tls_key_file.*/a\\  tls_disable = 1" /etc/vault.d/vault.hcl
+	grep -q api_addr /etc/vault.d/vault.hcl
+	if [ $? -eq 1 ]; then
+		echo "api_addr = \"http://127.0.0.1:8200\"" >> /etc/vault.d/vault.hcl
+	fi
+	grep -q plugin_directory /etc/vault.d/vault.hcl
+	if [ $? -eq 1 ]; then
+		echo "plugin_directory = \"/opt/vault/plugins\"" >> /etc/vault.d/vault.hcl
+	fi
+	grep -q tls_key_file /etc/vault.d/vault.hcl
+	if [ $? -eq 1 ]; then
+		sed -E -i "/tls_key_file.*/a\\  tls_disable = 1" /etc/vault.d/vault.hcl
 	echo "Vault server configured"
 }
 
