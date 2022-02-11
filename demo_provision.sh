@@ -101,10 +101,10 @@ function create_ecs_users_and_policies() {
 	echo "Permissions added"
 
 	# Create Access Key for Users
-	echo "Creating Admin Users Access/Secret Keys"
+	echo "Creating Admin User Access Key and Secret Keys"
 	for iamUser in "${iam_users[@]:0:2}"; do
 		curl -ks -X POST "https://ecs.demo.local:4443/iam?UserName=$iamUser&Action=CreateAccessKey" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" > ~/creds_${iamUser}.txt
-		sed -Eie "s/.*AccessKeyId>(.*)<\/Access.*SecretAccessKey>(.*)<\/Secret.*/\1 \2/" ~/creds_${iamUser}.txt
+		sed -E -i "s/.*AccessKeyId>(.*)<\/Access.*SecretAccessKey>(.*)<\/Secret.*/\1 \2/" ~/creds_${iamUser}.txt
 		echo "Key created: ${iamUser}"
 	done
 	echo "User key created"
@@ -122,7 +122,7 @@ function configure_vault_server() {
 	echo "Configuring Vault server"
 	echo "api_addr = \"http://127.0.0.1:8200\"" >> /etc/vault.d/vault.hcl
 	echo "plugin_directory = \"/opt/vault/plugins\"" >> /etc/vault.d/vault.hcl
-	sed -Eie "/tls_key_file.*/a\\  tls_disable = 1" /etc/vault.d/vault.hcl
+	sed -E -i "/tls_key_file.*/a\\  tls_disable = 1" /etc/vault.d/vault.hcl
 	echo "Vault server configured"
 }
 
