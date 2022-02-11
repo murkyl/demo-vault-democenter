@@ -1,9 +1,8 @@
 #!/bin/bash
-
 IFS='' read -r -d '' USAGE << EOF
 Usage: demo_provision.sh <operation>
 
-Valid parameters:
+Valid operations:
 all
 	- Perform a full install
 install
@@ -26,16 +25,19 @@ register_pscale_plugin
 	- Register PowerScale plugin into Vault
 EOF
 
-
-# Define common variables
+# Define common variables with defaults. You can override these from the shell by setting the environment variables appropriately
 vault_ver="${VAULT_VER:=vault-1.7.3}"
+ecs_endpoint="${ECS_ENDPOINT:=ecs.demo.local}"
 ecs_plugin_ver="${ECS_PLUGIN_VER:=0.4.3}"
 ecs_plugin_name="vault-plugin-secrets-objectscale"
 ecs_vault_endpoint="objectscale"
+pscale_endpoint="${PSCALE_ENDPOINT:=192.168.1.21}"
 pscale_plugin_ver="${PSCALE_PLUGIN_VER:=0.3.1}"
 pscale_plugin_name="vault-plugin-secrets-onefs"
 pscale_vault_endpoint="pscale"
-export VAULT_ADDR="http://127.0.0.1:8200"
+# VAULT_ADDR needs to be in the shell's environment and this line will be added to the user's ~/.bash_profile
+# The user will have to reload their profile to have it take effect after the script runs. e.g. source ~/.bash_profile
+VAULT_ADDR="http://127.0.0.1:8200"
 
 # Define ECS variables
 ecs_username="root"
@@ -68,16 +70,26 @@ function install_packages() {
 	echo "Packages installed"
 }
 
+function install_env() {
+	grep -q VAULT_ADDR ~/.bash_profile
+	if [ $? -eq 1 ]; then
+		echo "VAULT_ADDR=${VAULT_ADDR}" >> ~/.bash_profile
+		echo "export VAULT_ADDR" >> ~/.bash_profile
+	fi
+	echo "VAULT_ADDR environment variable written to ~/.bash_profile. You must manually source this file to activate the variable. Please run the following command:"
+	echo "    source ~/.bash_profile"
+}
+
 function login_ecs() {
 	# Extract Management Session Token for future commands
-	export ecs_token=$(curl -k https://ecs.demo.local:4443/login -u ${ecs_username}:${ecs_password} -Is | grep 'X-SDS-AUTH-TOKEN' | cut -d " " -f 2)
+	export ecs_token=$(curl -k https://${ecs_endpoint}:4443/login -u ${ecs_username}:${ecs_password} -Is | grep 'X-SDS-AUTH-TOKEN' | cut -d " " -f 2)
 	echo "Logged into ECS as ${ecs_username}"
 }
 
 function logout_ecs() {
 	# Log out of Management API
 	echo "Logging out from ECS"
-	curl -ks https://ecs.demo.local:4443/logout -H "X-SDS-AUTH-TOKEN: ${ecs_token}" > /dev/null
+	curl -ks https://${ecs_endpoint}:4443/logout -H "X-SDS-AUTH-TOKEN: ${ecs_token}" > /dev/null
 	unset ecs_token
 }
 
@@ -86,7 +98,7 @@ function create_ecs_users_and_policies() {
 	echo "Creating new IAM users with no permission"
 	rm -f ~/log_iam_user_create.txt
 	for iamUser in "${iam_users[@]}"; do
-		curl -ks -X POST "https://ecs.demo.local:4443/iam?UserName=$iamUser&Action=CreateUser" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" >> ~/log_iam_user_create.txt
+		curl -ks -X POST "https://${ecs_endpoint}:4443/iam?UserName=$iamUser&Action=CreateUser" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" >> ~/log_iam_user_create.txt
 		echo "" >> ~/log_iam_user_create.txt
 		echo "User created: ${iamUser}"
 	done
@@ -96,7 +108,7 @@ function create_ecs_users_and_policies() {
 	echo "Adding permissions to IAM users"
 	rm -f ~/log_iam_add_permission.txt
 	for index in ${!iam_users[*]}; do
-		curl -ks -X POST "https://ecs.demo.local:4443/iam?UserName=${iam_users[$index]}&PolicyArn=${iam_policies[$index]}&Action=AttachUserPolicy" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" >> ~/log_iam_add_permission.txt
+		curl -ks -X POST "https://${ecs_endpoint}:4443/iam?UserName=${iam_users[$index]}&PolicyArn=${iam_policies[$index]}&Action=AttachUserPolicy" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" >> ~/log_iam_add_permission.txt
 		echo "Permission added: ${index}"
 	done
 	echo "Permissions added"
@@ -104,17 +116,17 @@ function create_ecs_users_and_policies() {
 	# Create Access Key for Users
 	echo "Creating Admin User Access Key and Secret Keys"
 	for iamUser in "${iam_users[@]:0:2}"; do
-		curl -ks -X POST "https://ecs.demo.local:4443/iam?UserName=$iamUser&Action=CreateAccessKey" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" > ~/creds_${iamUser}.txt
+		curl -ks -X POST "https://${ecs_endpoint}:4443/iam?UserName=$iamUser&Action=CreateAccessKey" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" > ~/creds_${iamUser}.txt
 		sed -E -i "s/.*AccessKeyId>(.*)<\/Access.*SecretAccessKey>(.*)<\/Secret.*/\1 \2/" ~/creds_${iamUser}.txt
 		echo "Key created: ${iamUser}"
 	done
-	echo "User key created"
+	echo "User keys created"
 
 	# Create Roles RoleDocument is URL encoded
 	echo "Creating an IAM Role for IAM-User1"
 	rm -f ~/log_create_role.txt
-	curl -ks --data-urlencode "AssumeRolePolicyDocument@rolepolicy.json" --data "RoleName=${ecs_role_name}" --data "Action=CreateRole" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" "https://ecs.demo.local:4443/iam?" >> ~/log_create_role.txt
-	curl -ks -X POST "https://ecs.demo.local:4443/iam?PolicyArn=${iam_policies[@]:0:2}&RoleName=${ecs_role_name}&Action=AttachRolePolicy" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" >> ~/log_create_role.txt
+	curl -ks --data-urlencode "AssumeRolePolicyDocument@rolepolicy.json" --data "RoleName=${ecs_role_name}" --data "Action=CreateRole" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" "https://${ecs_endpoint}:4443/iam?" >> ~/log_create_role.txt
+	curl -ks -X POST "https://${ecs_endpoint}:4443/iam?PolicyArn=${iam_policies[@]:0:2}&RoleName=${ecs_role_name}&Action=AttachRolePolicy" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" >> ~/log_create_role.txt
 	echo "Role created"
 }
 
@@ -152,9 +164,9 @@ function stop_vault_server() {
 
 function init_vault_server() {
 	if test -f "~/vault.keys"; then
-		echo "Vault is already initialized. To reset demo run 'rm -rf /opt/vault/data/*'"
+		echo "Vault is already initialized. To reset Vault run 'rm -rf /opt/vault/data/*'"
 	else
-		vault operator init -key-shares=1 -key-threshold=1 > ~/vault.keys
+		vault operator init -key-shares=1 -key-threshold=1 | grep -E "(Unseal Key|Root Token)" > ~/vault.keys
 	fi
 }
 
@@ -200,9 +212,13 @@ case $1 in
 		unseal_and_login_vault
 		register_ecs_plugin
 		register_pscale_plugin
+		install_env
 		;;
 	install)
 		install_packages
+		;;
+	install_env)
+		install_env
 		;;
 	init_ecs)
 		login_ecs
