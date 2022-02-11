@@ -13,13 +13,13 @@ install
 	- Install packages and plugins
 init_ecs
 	- Setup ECS
-configure_vault_server
+configure_vault
 	- Configure Vault configuration file
-start_vault_server
+start_vault
 	- Start Vault server
-init_vault_server
+init_vault
 	- Initialize Vault storage and store unseal keys and root token
-stop_vault_server
+stop_vault
 	- Stop Vault server
 unseal_and_login_vault
 	- Unseal Vault and login as root
@@ -178,7 +178,7 @@ function create_ecs_users_and_policies() {
 	echo "Role created"
 }
 
-function configure_vault_server() {
+function configure_vault() {
 	# Configure Vault server
 	echo "Configuring Vault server"
 	grep -q api_addr /etc/vault.d/vault.hcl
@@ -193,7 +193,7 @@ function configure_vault_server() {
 	else
 		echo "plugin_directory already set in ${vault_cfg_file} file"
 	fi
-	grep -q tls_disable /etc/vault.d/vault.hcl
+	grep -q -A2 tls_key_file /etc/vault.d/vault.hcl | grep -q tls_disable
 	if [ $? -eq 1 ]; then
 		sed -E -i "/tls_key_file.*/a\\  tls_disable = 1" ${vault_cfg_file}
 	else
@@ -202,23 +202,23 @@ function configure_vault_server() {
 	echo "Vault server configured"
 }
 
-function start_vault_server() {
+function start_vault() {
 	# Start Vault server
 	echo "Starting Vault service"
 	systemctl start vault.service
 	echo "Vault server started"
 }
 
-function stop_vault_server() {
+function stop_vault() {
 	# Stop Vault server
 	echo "Stopping Vault service"
 	systemctl stop vault.service
 	echo "Vault server stopped"
 }
 
-function init_vault_server() {
-	if test -f "~/vault.keys"; then
-		echo "Vault is already initialized. To reset Vault run 'rm -rf /opt/vault/data/*'"
+function init_vault() {
+	if [ ! -s "~/vault.keys" ]; then
+		echo "Vault is already initialized. To reset Vault run 'rm -rf /opt/vault/data/*; rm -f ~/vault.keys'"
 	else
 		vault operator init -key-shares=1 -key-threshold=1 | grep -E "(Unseal Key|Root Token)" > ~/vault.keys
 	fi
@@ -310,9 +310,9 @@ case $1 in
 		login_ecs
 		create_ecs_users_and_policies
 		logout_ecs
-		configure_vault_server
-		start_vault_server
-		init_vault_server
+		configure_vault
+		start_vault
+		init_vault
 		unseal_and_login_vault
 		register_ecs_plugin
 		config_ecs_plugin
@@ -333,17 +333,17 @@ case $1 in
 		create_ecs_users_and_policies
 		logout_ecs
 		;;
-	configure_vault_server)
-		configure_vault_server
+	configure_vault)
+		configure_vault
 		;;
-	start_vault_server)
-		start_vault_server
+	start_vault)
+		start_vault
 		;;
-	init_vault_server)
-		init_vault_server
+	init_vault)
+		init_vault
 		;;
-	stop_vault_server)
-		stop_vault_server
+	stop_vault)
+		stop_vault
 		;;
 	unseal_and_login_vault)
 		unseal_and_login_vault
