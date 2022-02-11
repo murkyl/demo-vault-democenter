@@ -265,9 +265,15 @@ function config_ecs_demo() {
 	vault write ${ecs_vault_endpoint}/roles/dynamic/${ecs_dynamic_role_1} namespace=ns1 policy=IAMReadOnlyAccess
 	echo "Demo endpoints configured"
 	echo "Usable endpoints"
+	echo "    # Rotate access key and secret"
 	echo "    ${ecs_vault_endpoint}/creds/predefined/${iam_users[1]}"
+	echo "    # IAM Read only access"
 	echo "    ${ecs_vault_endpoint}/creds/dynamic/${ecs_dynamic_role_1}"
+	echo "    # Assume role: admins"
 	echo "    ${ecs_vault_endpoint}/sts/predefined/${iam_users[2]} role_arn=urn:ecs:iam::ns1:role/${ecs_role_name}"
+	echo ""
+	echo "Example:"
+	echo "  vault read ${ecs_vault_endpoint}/creds/predefined/${iam_users[1]}"
 }
 
 function register_pscale_plugin() {
