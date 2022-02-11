@@ -2,9 +2,13 @@
 IFS='' read -r -d '' USAGE << EOF
 Usage: demo_provision.sh <operation>
 
+Quickstart:
+Execute the script with the 'all' operation to setup both ObjectScale and PowerScale demos
+    ./demo_provision.sh all
+
 Valid operations:
 all
-	- Perform a full install
+	- Perform a full install and configuration
 install
 	- Install packages and plugins
 init_ecs
@@ -29,6 +33,7 @@ EOF
 vault_ver="${VAULT_VER:=vault-1.7.3}"
 vault_cfg_file="/etc/vault.d/vault.hcl"
 ecs_endpoint="${ECS_ENDPOINT:=ecs.demo.local}"
+ecs_mgmt_port="4443"
 ecs_plugin_ver="${ECS_PLUGIN_VER:=0.4.3}"
 ecs_plugin_name="vault-plugin-secrets-objectscale"
 ecs_vault_endpoint="objectscale"
@@ -45,6 +50,7 @@ ecs_username="root"
 ecs_password="Password123!"
 ecs_role_name="admins"
 ecs_role_policy_file="role_iam-user1.json"
+ecs_dynamic_role_1="readonly_app1"
 #ecs_token is exported to the environment holding the current authentication token
 
 # Define PowerScale variables
@@ -52,6 +58,9 @@ pscale_username="root"
 pscale_password="Password123!"
 
 # Defining IAM Users
+# The first user MUST be the account that will be used by the plugin
+# The second user MUST be 
+# 
 iam_users=("plugin-admin" "iam-admin1" "iam-user1")
 
 # Defining IAM Policies
@@ -84,14 +93,17 @@ function install_env() {
 
 function login_ecs() {
 	# Extract Management Session Token for future commands
-	export ecs_token=$(curl -k https://${ecs_endpoint}:4443/login -u ${ecs_username}:${ecs_password} -Is | grep 'X-SDS-AUTH-TOKEN' | cut -d " " -f 2)
+	export ecs_token=$(curl -k https://${ecs_endpoint}:${ecs_mgmt_port}/login -u ${ecs_username}:${ecs_password} -Is | grep 'X-SDS-AUTH-TOKEN' | cut -d " " -f 2)
 	echo "Logged into ECS as ${ecs_username}"
 }
 
 function logout_ecs() {
 	# Log out of Management API
 	echo "Logging out from ECS"
-	curl -ks https://${ecs_endpoint}:4443/logout -H "X-SDS-AUTH-TOKEN: ${ecs_token}" > /dev/null
+	curl -ks \
+		"https://${ecs_endpoint}:${ecs_mgmt_port}/logout" \
+		-H "X-SDS-AUTH-TOKEN: ${ecs_token}" \
+		> /dev/null
 	unset ecs_token
 }
 
@@ -100,7 +112,11 @@ function create_ecs_users_and_policies() {
 	echo "Creating new IAM users with no permission"
 	rm -f ~/log_iam_user_create.txt
 	for iamUser in "${iam_users[@]}"; do
-		curl -ks -X POST "https://${ecs_endpoint}:4443/iam?UserName=$iamUser&Action=CreateUser" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" >> ~/log_iam_user_create.txt
+		curl -ks -X \
+			POST \
+			"https://${ecs_endpoint}:${ecs_mgmt_port}/iam?UserName=$iamUser&Action=CreateUser" \
+			-H "X-SDS-AUTH-TOKEN: ${ecs_token}" \
+			>> ~/log_iam_user_create.txt
 		echo -e "\n" >> ~/log_iam_user_create.txt
 		echo "User created: ${iamUser}"
 	done
@@ -110,7 +126,11 @@ function create_ecs_users_and_policies() {
 	echo "Adding permissions to IAM users"
 	rm -f ~/log_iam_add_permission.txt
 	for index in ${!iam_users[*]}; do
-		curl -ks -X POST "https://${ecs_endpoint}:4443/iam?UserName=${iam_users[$index]}&PolicyArn=${iam_policies[$index]}&Action=AttachUserPolicy" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" >> ~/log_iam_add_permission.txt
+		curl -ks -X \
+			POST \
+			"https://${ecs_endpoint}:${ecs_mgmt_port}/iam?UserName=${iam_users[$index]}&PolicyArn=${iam_policies[$index]}&Action=AttachUserPolicy" \
+			-H "X-SDS-AUTH-TOKEN: ${ecs_token}" \
+			>> ~/log_iam_add_permission.txt
 		echo -e "\n" >> ~/log_iam_add_permission.txt
 		echo "Permission added: ${index}"
 	done
@@ -119,7 +139,11 @@ function create_ecs_users_and_policies() {
 	# Create Access Key for Users
 	echo "Creating Admin User Access Key and Secret Keys"
 	for iamUser in "${iam_users[@]:0:2}"; do
-		curl -ks -X POST "https://${ecs_endpoint}:4443/iam?UserName=$iamUser&Action=CreateAccessKey" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" > ~/creds_${iamUser}.txt
+		curl -ks -X \
+			POST \
+			"https://${ecs_endpoint}:${ecs_mgmt_port}/iam?UserName=$iamUser&Action=CreateAccessKey" \
+			-H "X-SDS-AUTH-TOKEN: ${ecs_token}" \
+			> ~/creds_${iamUser}.txt
 		sed -E -i "s/.*AccessKeyId>(.*)<\/Access.*SecretAccessKey>(.*)<\/Secret.*/\1 \2/" ~/creds_${iamUser}.txt
 		echo "Key created: ${iamUser}"
 	done
@@ -128,9 +152,18 @@ function create_ecs_users_and_policies() {
 	# Create Roles RoleDocument is URL encoded
 	echo "Creating an IAM Role for IAM-User1"
 	rm -f ~/log_create_role.txt
-	curl -ks --data-urlencode "AssumeRolePolicyDocument@${ecs_role_policy_file}" --data "RoleName=${ecs_role_name}" --data "Action=CreateRole" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" "https://${ecs_endpoint}:4443/iam?" >> ~/log_create_role.txt
+	curl -ks \
+		--data-urlencode "AssumeRolePolicyDocument@${ecs_role_policy_file}" \
+		--data "RoleName=${ecs_role_name}" \
+		--data "Action=CreateRole" \
+		-H "X-SDS-AUTH-TOKEN: ${ecs_token}" \
+		"https://${ecs_endpoint}:${ecs_mgmt_port}/iam?" \
+		>> ~/log_create_role.txt
 	echo -e "\n" >> ~/log_create_role.txt
-	curl -ks -X POST "https://${ecs_endpoint}:4443/iam?PolicyArn=${iam_policies[@]:0:2}&RoleName=${ecs_role_name}&Action=AttachRolePolicy" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" >> ~/log_create_role.txt
+	curl -ks \
+		-X POST "https://${ecs_endpoint}:${ecs_mgmt_port}/iam?PolicyArn=${iam_policies[@]:0:2}&RoleName=${ecs_role_name}&Action=AttachRolePolicy" \
+		-H "X-SDS-AUTH-TOKEN: ${ecs_token}" \
+		>> ~/log_create_role.txt
 	echo "Role created"
 }
 
@@ -192,9 +225,34 @@ function register_ecs_plugin() {
 	echo "Registering ECS plugin"
 	VAULT_ECS_PLUGIN_VERSION=`ls /opt/vault/plugins/${ecs_plugin_name}-linux-* | sort -R | tail -n 1 | sed 's/.*\///'`
 	VAULT_ECS_PLUGIN_SHA256=`sha256sum /opt/vault/plugins/${VAULT_ECS_PLUGIN_VERSION} | cut -d " " -f 1`
-	vault plugin register -sha256=${VAULT_ECS_PLUGIN_SHA256} -command ${VAULT_ECS_PLUGIN_VERSION} secret ${ecs_vault_endpoint}
+	vault plugin register \
+		-sha256=${VAULT_ECS_PLUGIN_SHA256} \
+		-command ${VAULT_ECS_PLUGIN_VERSION} secret ${ecs_vault_endpoint}
 	vault secrets enable -path=${ecs_vault_endpoint} ${ecs_vault_endpoint}
 	echo "Plugin registered"
+}
+
+function config_ecs_plugin() {
+	# Configure ECS plugin
+	unseal_and_login_vault > /dev/null
+	echo "Configure ECS plugin"
+	# The user is actually the access key and the password is the secret generated in the init_ecs function
+	vault write ${ecs_vault_endpoint}/config/root \
+		user=`cat ~/creds_${iam_users[$index][0]}.txt | awk '{print $1}'` \
+		password=`cat ~/${iam_users[$index][0]}.txt | awk '{print $2}'` \
+		endpoint=${ecs_endpoint}:${ecs_mgmt_port} \
+		bypass_cert_check=true
+}
+
+function config_ecs_demo() {
+	# Configure the demo Vault endpoints
+	echo "Configuring ECS demo user endpoints. Usable endpoints"
+	echo "    ${ecs_vault_endpoint}/creds/predefined/${iam_users[$index][1]}"
+	echo "    ${ecs_vault_endpoint}/creds/dynamic/${ecs_dynamic_role_1}"
+	echo "    ${ecs_vault_endpoint}/sts/predefined/${iam_users[$index][2]} role_arn=urn:ecs:iam::ns1:role/${ecs_role_name}"
+	unseal_and_login_vault > /dev/null
+	vault write ${ecs_vault_endpoint}/roles/predefined//${iam_users[$index][1]} namespace=ns1
+	vault write ${ecs_vault_endpoint}/roles/dynamic/${ecs_dynamic_role_1} namespace=ns1 policy=ns:IAMReadOnlyAccess
 }
 
 function register_pscale_plugin() {
@@ -207,13 +265,19 @@ function register_pscale_plugin() {
 	echo "Plugin registered"
 }
 
+function config_pscale_plugin() {
+}
+
+function config_pscale_demo() {
+}
+
 function verify_vault_plugins() {
 	unseal_and_login_vault > /dev/null
 	echo "Verifying Vault plugin installation"
-	echo "You should see objectscale and pscale output following this line:"
-	vault plugin list | grep -E "(objectscale|pscale)"
+	echo "You should see ${ecs_vault_endpoint} and pscale_vault_endpoint output following this line:"
+	vault plugin list | grep -E "(${ecs_vault_endpoint}|pscale_vault_endpoint)"
 	echo "=========="
-	echo "You should see both the objectscale/ and pscale/ paths in the enabled plugin list:"
+	echo "You should see both the ${ecs_vault_endpoint}/ and pscale_vault_endpoint/ paths in the enabled plugin list:"
 	vault secrets list
 	echo "=========="
 }
@@ -234,7 +298,11 @@ case $1 in
 		init_vault_server
 		unseal_and_login_vault
 		register_ecs_plugin
+		config_ecs_plugin
+		config_ecs_demo
 		register_pscale_plugin
+		config_pscale_plugin
+		config_pscale_demo
 		install_env
 		;;
 	install)
@@ -266,8 +334,20 @@ case $1 in
 	register_ecs_plugin)
 		register_ecs_plugin
 		;;
+	config_ecs_plugin)
+		config_ecs_plugin
+		;;
+	config_ecs_demo)
+		config_ecs_demo
+		;;
 	register_pscale_plugin)
 		register_pscale_plugin
+		;;
+	config_pscale_plugin)
+		config_pscale_plugin
+		;;
+	config_pscale_demo)
+		config_pscale_demo
 		;;
 	verify_vault_plugins)
 		verify_vault_plugins
