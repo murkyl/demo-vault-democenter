@@ -183,6 +183,7 @@ function register_ecs_plugin() {
 	VAULT_ECS_PLUGIN_VERSION=`ls /opt/vault/plugins/${ecs_plugin_name}-linux-* | sort -R | tail -n 1 | sed 's/.*\///'`
 	VAULT_ECS_PLUGIN_SHA256=`sha256sum /opt/vault/plugins/${VAULT_ECS_PLUGIN_VERSION} | cut -d " " -f 1`
 	vault plugin register -sha256=${VAULT_ECS_PLUGIN_SHA256} -command ${VAULT_ECS_PLUGIN_VERSION} secret ${ecs_vault_endpoint}
+	vault plugin enable -path=${ecs_vault_endpoint} ${ecs_vault_endpoint}
 	echo "Plugin registered"
 }
 
@@ -192,6 +193,7 @@ function register_pscale_plugin() {
 	VAULT_PSCALE_PLUGIN_VERSION=`ls /opt/vault/plugins/${pscale_plugin_name}-linux-* | sort -R | tail -n 1 | sed 's/.*\///'`
 	VAULT_PSCALE_PLUGIN_SHA256=`sha256sum /opt/vault/plugins/${VAULT_PSCALE_PLUGIN_VERSION} | cut -d " " -f 1`
 	vault plugin register -sha256=${VAULT_PSCALE_PLUGIN_SHA256} -command ${VAULT_PSCALE_PLUGIN_VERSION} secret ${pscale_vault_endpoint}
+	vault plugin enable -path=${pscale_vault_endpoint} ${pscale_vault_endpoint}
 	echo "Plugin registered"
 }
 
