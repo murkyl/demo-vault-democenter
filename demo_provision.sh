@@ -41,19 +41,19 @@ EOF
 
 # Define common variables with defaults. You can override these from the shell by setting the environment variables appropriately
 vault_ver="${VAULT_VER:=vault-1.7.3}"
-vault_cfg_file="/etc/vault.d/vault.hcl"
+vault_cfg_file="${VAULT_CFG_FILE:=/etc/vault.d/vault.hcl}"
 ecs_endpoint="${ECS_ENDPOINT:=ecs.demo.local}"
-ecs_mgmt_port="4443"
+ecs_mgmt_port="${ECS_MGMT_PORT:=4443}"
 ecs_plugin_ver="${ECS_PLUGIN_VER:=0.4.3}"
-ecs_plugin_name="vault-plugin-secrets-objectscale"
-ecs_vault_endpoint="objectscale"
+ecs_plugin_name="${ECS_PLUGIN_NAME:=vault-plugin-secrets-objectscale}"
+ecs_vault_endpoint="${ECS_VAULT_ENDPOINT:=objectscale}"
 pscale_endpoint="${PSCALE_ENDPOINT:=192.168.1.21}"
 pscale_plugin_ver="${PSCALE_PLUGIN_VER:=0.3.1}"
-pscale_plugin_name="vault-plugin-secrets-onefs"
-pscale_vault_endpoint="pscale"
+pscale_plugin_name="${PSCALE_PLUGIN_NAME:=vault-plugin-secrets-onefs}"
+pscale_vault_endpoint="${PSCALE_VAULT_ENDPOINT:=pscale}"
 # VAULT_ADDR needs to be in the shell's environment and this line will be added to the user's ~/.bash_profile
 # The user will have to reload their profile to have it take effect after the script runs. e.g. source ~/.bash_profile
-VAULT_ADDR="http://127.0.0.1:8200"
+VAULT_ADDR="${VAULT_ADDR:=http://127.0.0.1:8200}"
 
 # Define ECS variables
 ecs_username="root"
@@ -69,8 +69,8 @@ pscale_password="Password123!"
 
 # Defining IAM Users
 # The first user MUST be the account that will be used by the plugin
-# The second user MUST be 
-# 
+# The second user is the account that will have their secrets rotated
+# The third user is an IAM user that will use STS to assume a role
 iam_users=("plugin-admin" "iam-admin1" "iam-user1")
 
 # Defining IAM Policies
