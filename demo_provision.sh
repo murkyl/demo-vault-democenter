@@ -26,7 +26,17 @@ unseal_and_login_vault
 register_ecs_plugin
 	- Register ECS plugin into Vault
 register_pscale_plugin
+config_ecs_plugin
+	- Configure the ObjectScale plugin (endpoint and credentials)
+config_ecs_demo
+	-	Setup ObjectScale demo endpoints
 	- Register PowerScale plugin into Vault
+config_pscale_plugin
+	- Configure the PowerScale plugin (endpoint and credentials)
+config_pscale_demo
+	- Setup PowerScale demo endpoints
+verify_vault_plugins
+	- Verify if the Vault plugins are installed and enabled
 EOF
 
 # Define common variables with defaults. You can override these from the shell by setting the environment variables appropriately
@@ -266,9 +276,11 @@ function register_pscale_plugin() {
 }
 
 function config_pscale_plugin() {
+	echo ""
 }
 
 function config_pscale_demo() {
+	echo ""
 }
 
 function verify_vault_plugins() {
