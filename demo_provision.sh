@@ -74,6 +74,7 @@ pscale_password="Password123!"
 iam_users=("plugin-admin" "iam-admin1" "iam-user1")
 
 # Defining IAM Policies
+# There must be a 1 to 1 match between the iam_users and iam_policies arrays
 iam_policies=("urn:ecs:iam:::policy/IAMFullAccess" "urn:ecs:iam:::policy/ECSS3FullAccess" "urn:ecs:iam:::policy/ECSS3ReadOnlyAccess")
 
 function install_packages() {
@@ -121,21 +122,21 @@ function create_ecs_users_and_policies() {
 	# Create general IAM User with no permissions
 	echo "Creating new IAM users with no permission"
 	rm -f ~/log_iam_user_create.txt
-	for iamUser in "${iam_users[@]}"; do
+	for user in "${iam_users[@]}"; do
 		curl -ks -X \
 			POST \
-			"${ecs_endpoint}:${ecs_mgmt_port}/iam?UserName=$iamUser&Action=CreateUser" \
+			"${ecs_endpoint}:${ecs_mgmt_port}/iam?UserName=${user}&Action=CreateUser" \
 			-H "X-SDS-AUTH-TOKEN: ${ecs_token}" \
 			>> ~/log_iam_user_create.txt
 		echo -e "\n" >> ~/log_iam_user_create.txt
-		echo "User created: ${iamUser}"
+		echo "User created: ${user}"
 	done
 	echo "Created Users"
 
 	# Give users permission via IAM policies
 	echo "Adding permissions to IAM users"
 	rm -f ~/log_iam_add_permission.txt
-	for index in ${!iam_users[*]}; do
+	for index in ${!iam_users[@]}; do
 		curl -ks -X \
 			POST \
 			"${ecs_endpoint}:${ecs_mgmt_port}/iam?UserName=${iam_users[$index]}&PolicyArn=${iam_policies[$index]}&Action=AttachUserPolicy" \
@@ -148,14 +149,14 @@ function create_ecs_users_and_policies() {
 
 	# Create Access Key for Users
 	echo "Creating User access keys and secret keys"
-	for iamUser in "${iam_users[@]}"; do
+	for user in "${iam_users[@]}"; do
 		curl -ks -X \
 			POST \
-			"${ecs_endpoint}:${ecs_mgmt_port}/iam?UserName=${iamUser}&Action=CreateAccessKey" \
+			"${ecs_endpoint}:${ecs_mgmt_port}/iam?UserName=${user}&Action=CreateAccessKey" \
 			-H "X-SDS-AUTH-TOKEN: ${ecs_token}" \
-			> ~/creds_${iamUser}.txt
-		sed -E -i "s/.*AccessKeyId>(.*)<\/Access.*SecretAccessKey>(.*)<\/Secret.*/\1 \2/" ~/creds_${iamUser}.txt
-		echo "Key created: ${iamUser}"
+			> ~/creds_${user}.txt
+		sed -E -i "s/.*AccessKeyId>(.*)<\/Access.*SecretAccessKey>(.*)<\/Secret.*/\1 \2/" ~/creds_${user}.txt
+		echo "Key created: ${user}"
 	done
 	echo "User keys created"
 
