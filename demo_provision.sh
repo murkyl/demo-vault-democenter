@@ -183,7 +183,7 @@ function register_ecs_plugin() {
 	VAULT_ECS_PLUGIN_VERSION=`ls /opt/vault/plugins/${ecs_plugin_name}-linux-* | sort -R | tail -n 1 | sed 's/.*\///'`
 	VAULT_ECS_PLUGIN_SHA256=`sha256sum /opt/vault/plugins/${VAULT_ECS_PLUGIN_VERSION} | cut -d " " -f 1`
 	vault plugin register -sha256=${VAULT_ECS_PLUGIN_SHA256} -command ${VAULT_ECS_PLUGIN_VERSION} secret ${ecs_vault_endpoint}
-	vault plugin enable -path=${ecs_vault_endpoint} ${ecs_vault_endpoint}
+	vault secrets enable -path=${ecs_vault_endpoint} ${ecs_vault_endpoint}
 	echo "Plugin registered"
 }
 
@@ -193,8 +193,19 @@ function register_pscale_plugin() {
 	VAULT_PSCALE_PLUGIN_VERSION=`ls /opt/vault/plugins/${pscale_plugin_name}-linux-* | sort -R | tail -n 1 | sed 's/.*\///'`
 	VAULT_PSCALE_PLUGIN_SHA256=`sha256sum /opt/vault/plugins/${VAULT_PSCALE_PLUGIN_VERSION} | cut -d " " -f 1`
 	vault plugin register -sha256=${VAULT_PSCALE_PLUGIN_SHA256} -command ${VAULT_PSCALE_PLUGIN_VERSION} secret ${pscale_vault_endpoint}
-	vault plugin enable -path=${pscale_vault_endpoint} ${pscale_vault_endpoint}
+	vault secrets enable -path=${pscale_vault_endpoint} ${pscale_vault_endpoint}
 	echo "Plugin registered"
+}
+
+function verify_vault_plugins() {
+	unseal_and_login_vault > /dev/null
+	echo "Verifying Vault plugin installation"
+	echo "You should see objectscale and pscale output following this line:"
+	vault plugin list | grep -E "(objectscale|pscale)"
+	echo "=========="
+	echo "You should see both the objectscale/ and pscale/ paths in the enabled plugin list:"
+	vault secrets list
+	echo "=========="
 }
 
 if [ $# -eq 0 ]; then
@@ -247,6 +258,9 @@ case $1 in
 		;;
 	register_pscale_plugin)
 		register_pscale_plugin
+		;;
+	verify_vault_plugins)
+		verify_vault_plugins
 		;;
 	*)
 		echo "$USAGE"
