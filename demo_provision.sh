@@ -1,5 +1,32 @@
 #!/bin/bash
 
+read -r -d '' USAGE <<- 'EOF'
+Usage: demo_provision.sh <operation>
+
+Valid parameters:
+all
+	- Perform a full install
+install
+	- Install packages and plugins
+init_ecs
+	- Setup ECS
+configure_vault_server
+	- Configure Vault configuration file
+start_vault_server
+	- Start Vault server
+init_vault_server
+	- Initialize Vault storage and store unseal keys and root token
+stop_vault_server
+	- Stop Vault server
+unseal_and_login_vault
+	- Unseal Vault and login as root
+register_ecs_plugin
+	- Register ECS plugin into Vault
+register_pscale_plugin
+	- Register PowerScale plugin into Vault
+EOF
+
+
 # Define common variables
 vault_ver="${VAULT_VER:=vault-1.7.3}"
 ecs_plugin_ver="${ECS_PLUGIN_VER:=0.4.3}"
@@ -56,31 +83,35 @@ function logout_ecs() {
 function create_ecs_users_and_policies() {
 	# Create general IAM User with no permissions
 	echo "Creating new IAM users with no permission"
+	rm -f ~/log_iam_user_create.txt
 	for iamUser in "${iam_users[@]}"; do
-			curl -ks -X POST "https://ecs.demo.local:4443/iam?UserName=$iamUser&Action=CreateUser" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" >> ~/log_iam_user_create.txt
-			echo "User created: ${iamUser}"
+		curl -ks -X POST "https://ecs.demo.local:4443/iam?UserName=$iamUser&Action=CreateUser" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" >> ~/log_iam_user_create.txt
+		echo "" >> ~/log_iam_user_create.txt
+		echo "User created: ${iamUser}"
 	done
 	echo "Created Users"
 
 	# Give users permission via IAM policies
 	echo "Adding permissions to IAM users"
+	rm -f ~/log/iam_add_permission.txt
 	for index in ${!iam_users[*]}; do
-			curl -ks -X POST "https://ecs.demo.local:4443/iam?UserName=${iam_users[$index]}&PolicyArn=${iam_policies[$index]}&Action=AttachUserPolicy" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" >> ~/log/iam_add_permission
-			echo "Permission added: ${index}"
+		curl -ks -X POST "https://ecs.demo.local:4443/iam?UserName=${iam_users[$index]}&PolicyArn=${iam_policies[$index]}&Action=AttachUserPolicy" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" >> ~/log/iam_add_permission.txt
+		echo "Permission added: ${index}"
 	done
 	echo "Permissions added"
 
-	# Create Access Key for Admin Users
-	# xmlstarlet package will need to be installed on client machine from CentOS EPEL repository
+	# Create Access Key for Users
 	echo " Creating Admin Users Access/Secret Keys"
 	for iamUser in "${iam_users[@]:0:2}"; do
-			curl -ks -X POST "https://ecs.demo.local:4443/iam?UserName=$iamUser&Action=CreateAccessKey" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" > ~/creds_${iamUser}.txt
+		curl -ks -X POST "https://ecs.demo.local:4443/iam?UserName=$iamUser&Action=CreateAccessKey" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" > ~/creds_${iamUser}.txt
+		sed -Eie "s/.*AccessKeyId>(.*)<\/Access.*SecretAccessKey>(.*)<\/Secret.*/\1 \2/" ~/creds_${iamUser}.txt
+		echo "Key created: ${iamUser}"
 	done
-	echo "Admins have keys"
+	echo "User key created"
 
 	# Create Roles RoleDocument is URL encoded
 	echo "Creating an IAM Role for IAM-User1"
-	curl -ks --data-urlencode "AssumeRolePolicyDocument@rolepolicy.json" --data "RoleName=${ecs_role_name}" --data "Action=CreateRole" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" https://ecs.demo.local:4443/iam?
+	curl -ks --data-urlencode "AssumeRolePolicyDocument@rolepolicy.json" --data "RoleName=${ecs_role_name}" --data "Action=CreateRole" -H "X-SDS-AUTH-TOKEN: ${ecs_token}" "https://ecs.demo.local:4443/iam?"
 	curl -ks -X POST "https://ecs.demo.local:4443/iam?PolicyArn=${iam_policies[@]:0:2}&RoleName=${ecs_role_name}&Action=AttachRolePolicy" -H "X-SDS-AUTH-TOKEN: ${ecs_token}"
 	echo "Role created"
 }
@@ -124,30 +155,68 @@ function unseal_and_login_vault() {
 }
 
 function register_ecs_plugin() {
-  # Register plugin
+	# Register plugin
 	echo "Registering ECS plugin"
-  VAULT_ECS_PLUGIN_VERSION=`ls /opt/vault/plugins/${ecs_plugin_name}-linux-* | sort -R | tail -n 1 | sed 's/.*\///'`
-  VAULT_ECS_PLUGIN_SHA256=`sha256sum /opt/vault/plugins/${VAULT_ECS_PLUGIN_VERSION} | cut -d " " -f 1`
-  vault plugin register -sha256=${VAULT_ECS_PLUGIN_SHA256} -command ${VAULT_ECS_PLUGIN_VERSION} secret ${ecs_vault_endpoint}
+	VAULT_ECS_PLUGIN_VERSION=`ls /opt/vault/plugins/${ecs_plugin_name}-linux-* | sort -R | tail -n 1 | sed 's/.*\///'`
+	VAULT_ECS_PLUGIN_SHA256=`sha256sum /opt/vault/plugins/${VAULT_ECS_PLUGIN_VERSION} | cut -d " " -f 1`
+	vault plugin register -sha256=${VAULT_ECS_PLUGIN_SHA256} -command ${VAULT_ECS_PLUGIN_VERSION} secret ${ecs_vault_endpoint}
 	echo "Plugin registered"
 }
 
 function register_pscale_plugin() {
-  # Register plugin
+	# Register plugin
 	echo "Registering PowerScale plugin"
-  VAULT_PSCALE_PLUGIN_VERSION=`ls /opt/vault/plugins/${pscale_plugin_name}-linux-* | sort -R | tail -n 1 | sed 's/.*\///'`
-  VAULT_PSCALE_PLUGIN_SHA256=`sha256sum /opt/vault/plugins/${VAULT_PSCALE_PLUGIN_VERSION} | cut -d " " -f 1`
-  vault plugin register -sha256=${VAULT_PSCALE_PLUGIN_SHA256} -command ${VAULT_PSCALE_PLUGIN_VERSION} secret ${pscale_vault_endpoint}
+	VAULT_PSCALE_PLUGIN_VERSION=`ls /opt/vault/plugins/${pscale_plugin_name}-linux-* | sort -R | tail -n 1 | sed 's/.*\///'`
+	VAULT_PSCALE_PLUGIN_SHA256=`sha256sum /opt/vault/plugins/${VAULT_PSCALE_PLUGIN_VERSION} | cut -d " " -f 1`
+	vault plugin register -sha256=${VAULT_PSCALE_PLUGIN_SHA256} -command ${VAULT_PSCALE_PLUGIN_VERSION} secret ${pscale_vault_endpoint}
 	echo "Plugin registered"
 }
 
-install_packages
-login_ecs
-create_ecs_users_and_policies
-logout_ecs
-configure_vault_server
-start_vault_server
-init_vault_server
-unseal_and_login_vault
-register_ecs_plugin
-register_pscale_plugin
+if [ $# -eq 0 ]; then
+	echo $USAGE
+	exit 1
+
+case $1 in
+	all)
+		install_packages
+		login_ecs
+		create_ecs_users_and_policies
+		logout_ecs
+		configure_vault_server
+		start_vault_server
+		init_vault_server
+		unseal_and_login_vault
+		register_ecs_plugin
+		register_pscale_plugin
+		;;
+	install)
+		install_packages
+		;;
+	init_ecs)
+		login_ecs
+		create_ecs_users_and_policies
+		logout_ecs
+		;;
+	configure_vault_server)
+		configure_vault_server
+		;;
+	start_vault_server)
+		start_vault_server
+		;;
+	init_vault_server)
+		init_vault_server
+		;;
+	stop_vault_server)
+		stop_vault_server
+		;;
+	unseal_and_login_vault)
+		unseal_and_login_vault
+		;;
+	register_ecs_plugin)
+		register_ecs_plugin
+		;;
+	register_pscale_plugin
+		register_pscale_plugin
+		;;
+		echo 
+	*)
