@@ -317,10 +317,10 @@ case $1 in
 		init_vault
 		unseal_and_login_vault
 		register_ecs_plugin
-		config_ecs_plugin
-		config_ecs_demo
 		register_pscale_plugin
+		config_ecs_plugin
 		config_pscale_plugin
+		config_ecs_demo
 		config_pscale_demo
 		install_env
 		;;

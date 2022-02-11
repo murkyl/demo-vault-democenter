@@ -15,4 +15,7 @@ Run the following commands to download and setup the demo:
     chmod a+x demo_provision.sh
     ./demo_provision.sh all
 
+After all packages are installed update your environment
+
+    source ~/.bash_profile
 
