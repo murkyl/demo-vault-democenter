@@ -217,7 +217,7 @@ function stop_vault() {
 }
 
 function init_vault() {
-	if [ ! -s ~/vault.keys ]; then
+	if [ -s ~/vault.keys ]; then
 		echo "Vault is already initialized. To reset Vault run 'rm -rf /opt/vault/data/*; rm -f ~/vault.keys'"
 	else
 		vault operator init -key-shares=1 -key-threshold=1 | grep -E "(Unseal Key|Root Token)" > ~/vault.keys
