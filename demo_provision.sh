@@ -95,6 +95,7 @@ function reset_aws_config() {
 	echo "[default]" > ~/.aws/credentials
 	echo "aws_access_key_id = \"\"" >> ~/.aws/credentials
 	echo "aws_secret_access_key = \"\"" >> ~/.aws/credentials
+	echo ""
 	chmod 600 ~/.aws/*
 }
 
@@ -294,7 +295,8 @@ function reset_ecs_access_key() {
 			POST \
 			"${ecs_endpoint}:${ecs_mgmt_port}/iam?UserName=${1}&Action=DeleteAccessKey&AccessKeyId=${key}" \
 			-H 'Accept: application/xml' \
-			-H "X-SDS-AUTH-TOKEN: ${ecs_token}"
+			-H "X-SDS-AUTH-TOKEN: ${ecs_token}" \
+			> /dev/null
 	done
 	# Create access key
 	curl -ks -X \
@@ -304,21 +306,25 @@ function reset_ecs_access_key() {
 		> ~/creds_${1}.txt
 	sed -E -i "s/.*AccessKeyId>(.*)<\/Access.*SecretAccessKey>(.*)<\/Secret.*/access_key    \1\nsecret_key    \2\n/" ~/creds_${1}.txt
 	# Update AWS CLI credentials
-	read -r -d '' creds << 'EOF'
-aws_access_key_id = `grep access_key ~/creds_${1}.txt | awk '{print $2}'`
-aws_secret_access_key = `grep secret_key ~/creds_${1}.txt | awk '{print $2}'`
+	key=`grep access_key ~/creds_${1}.txt | awk '{print $2}'`
+	secret=`grep secret_key ~/creds_${1}.txt | awk '{print $2}'`
+	read -r -d '' creds << EOF
+aws_access_key_id = ${key}
+aws_secret_access_key = ${secret}
 EOF
-	write_awscli_file ~/.aws/credentials ${1} ${creds}
+	write_awscli_file ~/.aws/credentials ${1} "${creds}"
 }
 
 function get_ecs_predefined_from_vault() {
 	vault read ${ecs_vault_endpoint}/creds/predefined/${1} | tee ~/creds_${1}.txt
 	# Update AWS CLI credentials
-	read -r -d '' creds << 'EOF'
-aws_access_key_id = `grep access_key ~/creds_${1}.txt | awk '{print $2}'`
-aws_secret_access_key = `grep secret_key ~/creds_${1}.txt | awk '{print $2}'`
+	key=`grep access_key ~/creds_${1}.txt | awk '{print $2}'`
+	secret=`grep secret_key ~/creds_${1}.txt | awk '{print $2}'`
+	read -r -d '' creds << EOF
+aws_access_key_id = ${key}
+aws_secret_access_key = ${secret}
 EOF
-	write_awscli_file ~/.aws/credentials ${1} ${creds}
+	write_awscli_file ~/.aws/credentials ${1} "${creds}"
 }
 
 function create_ecs_users_and_policies() {
