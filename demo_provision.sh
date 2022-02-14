@@ -41,6 +41,8 @@ reset_ecs_access_key <username>
 	- Reset a user's access key
 get_ecs_predefined_from_vault <username>
 	- Get ECS predefined access key, save to ~/.creds_<username>.txt, and add to the AWS CLI config
+get_ecs_sts_from_vault <username>
+	- Get ECS STS access key, save to ~/.creds_<username>.txt, and add to the AWS CLI config
 EOF
 
 # Define common variables with defaults. You can override these from the shell by setting the environment variables appropriately
