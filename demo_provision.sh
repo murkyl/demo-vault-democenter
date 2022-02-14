@@ -117,7 +117,7 @@ EOF
 	echo "VAULT_ADDR environment variable written to ~/.bash_profile"
 	echo "Aliases wrapping the AWS cli command written to ~/.bash_profile"
 	echo "    Aliases: ecsiamuser1, ecsiamadmin1"
-	echo "You must manually source this file to update your environment. Please run the following command:"
+	echo "You MUST manually source this file to update your environment"
 	echo "    source ~/.bash_profile"
 }
 
@@ -197,7 +197,7 @@ function create_ecs_users_and_policies() {
 
 	# Create Access Key for plugin-admin
 	echo "Creating plugin-admin access keys and secret key"
-	reset_ecs_access_key "iam-admin1"
+	reset_ecs_access_key "plugin-admin"
 	echo "Plugin-admin keys created"
 
 	# Create Roles, RoleDocument is URL encoded
