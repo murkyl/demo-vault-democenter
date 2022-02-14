@@ -74,6 +74,7 @@ ecs_username="root"
 ecs_password="Password123!"
 ecs_role_name="admins"
 ecs_role_policy_file="role_iam-user1.json"
+ecs_assume_policy_file="assume_role_policy.json"
 ecs_dynamic_role_1="readonly_app1"
 #ecs_token is exported to the environment holding the current authentication token
 
@@ -192,11 +193,16 @@ EOF
 	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 }
 
-# Function expects 3 arguments
+# Function expects 4 arguments
 # Argument 1: file name with path to modify
 # Argument 2: Header of the block to modify, e.g. "ecs" or "pscale"
-# Argument 3: Heredoc to replace the block with
+# Argument 3: Access key
+# Argument 4: Secret
 function write_awscli_file() {
+	read -r -d '' creds << EOF
+aws_access_key_id = ${3}
+aws_secret_access_key = ${4}
+EOF
 	edit_block=0
 	found=0
 	while IFS= read -r line; do
@@ -210,7 +216,7 @@ function write_awscli_file() {
 		if [[ ${edit_block} -eq 1 ]]; then
 			if [[ "${line}" = "[${2}]" ]]; then
 				echo "[${2}]" >> ${1}.tmp
-				echo "${3}" >> ${1}.tmp
+				echo "${creds}" >> ${1}.tmp
 				echo "" >> ${1}.tmp
 			fi
 		else
@@ -219,7 +225,7 @@ function write_awscli_file() {
 	done < ${1}
 	if [[ ${found} -eq 0 ]]; then
 		echo "[${2}]" >> ${1}.tmp
-		echo "${3}" >> ${1}.tmp
+		echo "${creds}" >> ${1}.tmp
 		echo "" >> ${1}.tmp
 	fi
 	mv -f ${1}.tmp ${1}
@@ -392,11 +398,7 @@ function reset_ecs_access_key() {
 	# Update AWS CLI credentials
 	key=`grep access_key ~/creds_${1}.txt | awk '{print $2}'`
 	secret=`grep secret_key ~/creds_${1}.txt | awk '{print $2}'`
-	read -r -d '' creds << EOF
-aws_access_key_id = ${key}
-aws_secret_access_key = ${secret}
-EOF
-	write_awscli_file ~/.aws/credentials ${1} "${creds}"
+	write_awscli_file ~/.aws/credentials ${1} ${key} ${secret}
 }
 
 function get_ecs_predefined() {
@@ -404,11 +406,7 @@ function get_ecs_predefined() {
 	# Update AWS CLI credentials
 	key=`grep access_key ~/creds_${1}.txt | awk '{print $2}'`
 	secret=`grep secret_key ~/creds_${1}.txt | awk '{print $2}'`
-	read -r -d '' creds << EOF
-aws_access_key_id = ${key}
-aws_secret_access_key = ${secret}
-EOF
-	write_awscli_file ~/.aws/credentials ${1} "${creds}"
+	write_awscli_file ~/.aws/credentials ${1} ${key} ${secret}
 	print_expire_date ${vault_default_expire}
 }
 
@@ -417,11 +415,7 @@ function get_ecs_dynamic() {
 	# Update AWS CLI credentials
 	key=`grep access_key ~/creds_dynamic.txt | awk '{print $2}'`
 	secret=`grep secret_key ~/creds_dynamic.txt | awk '{print $2}'`
-	read -r -d '' creds << EOF
-aws_access_key_id = ${key}
-aws_secret_access_key = ${secret}
-EOF
-	write_awscli_file ~/.aws/credentials dynamic "${creds}"
+	write_awscli_file ~/.aws/credentials dynamic ${key} ${secret}
 	print_expire_date ${vault_default_expire}
 }
 
@@ -431,6 +425,9 @@ EOF
 function get_ecs_sts() {
 	vault read ${ecs_vault_endpoint}/sts/predefined/${1} role_arn=${2}| tee ~/creds_${1}.txt
 	# Update AWS CLI credentials
+	key=`grep access_key ~/creds_${1}.txt | awk '{print $2}'`
+	secret=`grep secret_key ~/creds_${1}.txt | awk '{print $2}'`
+	write_awscli_file ~/.aws/credentials ${1} ${key} ${secret}
 	write_s3curl_file ~/.s3curl $key $secret
 	print_expire_date ${vault_default_sts_expire}
 }
@@ -439,11 +436,12 @@ function create_ecs_users_and_policies() {
 	echo "Creating new policy to allow a user to assume a role"
 	# Create new policy which allows for STS role assumption
 	curl -ks \
-		--data-urlencode "PolicyDocument=@assume_role_policy.json" \
+		--data-urlencode "PolicyDocument@${ecs_assume_policy_file}" \
 		--data "PolicyName=AllowAssumeRole" \
 		--data "Action=CreatePolicy" \
 		-H "X-SDS-AUTH-TOKEN: ${ecs_token}" \
-		"${ecs_endpoint}:${ecs_mgmt_port}/iam?"
+		"${ecs_endpoint}:${ecs_mgmt_port}/iam?" \
+		> ~/log_create_assume_policy.txt
 
 	# Create general IAM User with no permissions
 	echo "Creating new IAM users with no permission"
