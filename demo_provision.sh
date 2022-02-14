@@ -12,7 +12,7 @@ all
 install
 	- Install packages and plugins
 init_ecs
-	- Setup ECS
+	- Setup ECS by creating users and policies. Clears existing keys if they exist.
 configure_vault
 	- Configure Vault configuration file
 start_vault
@@ -87,18 +87,35 @@ function install_packages() {
 	wget -N -P /opt/vault/plugins https://github.com/murkyl/${ecs_plugin_name}/releases/download/v${ecs_plugin_ver}/${ecs_plugin_name}-linux-amd64-${ecs_plugin_ver}
 	wget -N -P /opt/vault/plugins https://github.com/murkyl/${pscale_plugin_name}/releases/download/v${pscale_plugin_ver}/${pscale_plugin_name}-linux-amd64-${pscale_plugin_ver}
 	wget -N https://raw.githubusercontent.com/murkyl/demo-vault-democenter/main/role_iam-user1.json
+	wget -N https://raw.githubusercontent.com/EMCECS/s3curl/master/s3curl.pl
 	chmod 755 /opt/vault/plugins/*
 	chown -R vault:vault /opt/vault/plugins
+	# Create AWS Cli configuration files
+	mkdir -p ~/.aws
+	chmod 755 ~/.aws
+	echo "[default]" > ~/.aws/config
+	echo "region = \"\"" >> ~/.aws/config
+	echo "[default]" > ~/.aws/credentials
+	echo "aws_access_key_id = \"\"" >> ~/.aws/credentials
+	echo "aws_secret_access_key = \"\"" >> ~/.aws/credentials
+	chmod 600 ~/.aws/*
 	echo "Packages installed"
 }
 
 function install_env() {
 	grep -q VAULT_ADDR ~/.bash_profile
 	if [ $? -eq 1 ]; then
-		echo "VAULT_ADDR=${VAULT_ADDR}" >> ~/.bash_profile
-		echo "export VAULT_ADDR" >> ~/.bash_profile
+		cat << EOF > ~/.bash_profile
+VAULT_ADDR=${VAULT_ADDR}
+export VAULT_ADDR
+alias ecsiamuser1='aws --profile=iamuser1 --endpoint-url=http://ecs.demo.local:9020'
+alias ecsiamadmin1='aws --profile=iamadmin1 --endpoint-url=http://ecs.demo.local:9020'
+EOF
 	fi
-	echo "VAULT_ADDR environment variable written to ~/.bash_profile. You must manually source this file to activate the variable. Please run the following command:"
+	echo "VAULT_ADDR environment variable written to ~/.bash_profile"
+	echo "Aliases wrapping the AWS cli command written to ~/.bash_profile"
+	echo "    Aliases: ecsiamuser1, ecsiamadmin1"
+	echo "You must manually source this file to update your environment. Please run the following command:"
 	echo "    source ~/.bash_profile"
 }
 
@@ -116,6 +133,19 @@ function logout_ecs() {
 		-H "X-SDS-AUTH-TOKEN: ${ecs_token}" \
 		> /dev/null
 	unset ecs_token
+}
+
+function reset_access_key_for_user() {
+	curl -ks -X\
+		POST "${ecs_endpoint}:${ecs_mgmt_[rt}/iam?Action=ListAccessKeys&UserName=${1}" \
+		-H "Accept: application/json"
+		-H "X-SDS-AUTH-TOKEN: ${ecs_token}" 
+	curl -ks -X \
+		POST \
+		"${ecs_endpoint}:${ecs_mgmt_port}/iam?UserName=${1}&Action=CreateAccessKey" \
+		-H "X-SDS-AUTH-TOKEN: ${ecs_token}" \
+		> ~/creds_${1}.txt
+	sed -E -i "s/.*AccessKeyId>(.*)<\/Access.*SecretAccessKey>(.*)<\/Secret.*/\1 \2/" ~/creds_${1}.txt
 }
 
 function create_ecs_users_and_policies() {
@@ -147,18 +177,10 @@ function create_ecs_users_and_policies() {
 	done
 	echo "Permissions added"
 
-	# Create Access Key for Users
-	echo "Creating User access keys and secret keys"
-	for user in "${iam_users[@]}"; do
-		curl -ks -X \
-			POST \
-			"${ecs_endpoint}:${ecs_mgmt_port}/iam?UserName=${user}&Action=CreateAccessKey" \
-			-H "X-SDS-AUTH-TOKEN: ${ecs_token}" \
-			> ~/creds_${user}.txt
-		sed -E -i "s/.*AccessKeyId>(.*)<\/Access.*SecretAccessKey>(.*)<\/Secret.*/\1 \2/" ~/creds_${user}.txt
-		echo "Key created: ${user}"
-	done
-	echo "User keys created"
+	# Create Access Key for plugin-admin
+	echo "Creating plugin-admin access keys and secret key"
+	reset_access_key_for_user "iam-admin1"
+	echo "Plugin-admin keys created"
 
 	# Create Roles, RoleDocument is URL encoded
 	echo "Creating an IAM Role for IAM-User1"
@@ -303,6 +325,38 @@ function verify_vault_plugins() {
 	echo "You should see both the ${ecs_vault_endpoint}/ and pscale_vault_endpoint/ paths in the enabled plugin list:"
 	vault secrets list
 	echo "=========="
+}
+
+# Function expects 3 arguments
+# Argument 1: file name with path to modify
+# Argument 2: Header of the block to modify, e.g. "ecs" or "pscale"
+# Argument 3: Heredoc to replace the block with
+function write_awscli_file() {
+	edit_block=0
+	found=0
+	while IFS= read -r line; do
+		if [[ "${line}" =~ ^\[.*\]$ ]]; then
+			edit_block=0
+			if [ "${line}" = "[${2}]" ]; then
+				edit_block=1
+				found=1
+			fi
+		fi
+		if [[ ${edit_block} -eq 1 ]]; then
+			if [[ "${line}" = "[${2}]" ]]; then
+				echo "[${2}]"
+				echo "${3}"
+				echo ""
+			fi
+		else
+			printf '%s\n' "$line"
+		fi
+	done < ${1}
+	if [[ ${found} -eq 0 ]]; then
+		echo "[${2}]"
+		echo "${3}"
+		echo ""
+	fi
 }
 
 if [ $# -eq 0 ]; then
