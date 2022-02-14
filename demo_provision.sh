@@ -130,8 +130,12 @@ EOF
 	echo "VAULT_ADDR environment variable written to ~/.bash_profile"
 	echo "Aliases wrapping the AWS cli command written to ~/.bash_profile"
 	echo "    Aliases: ecsiamuser1, ecsiamadmin1"
+	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 	echo "You MUST manually source this file to update your environment"
 	echo "    source ~/.bash_profile"
+	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 }
 
 # Function expects 3 arguments
@@ -318,6 +322,18 @@ EOF
 
 function get_ecs_predefined_from_vault() {
 	vault read ${ecs_vault_endpoint}/creds/predefined/${1} | tee ~/creds_${1}.txt
+	# Update AWS CLI credentials
+	key=`grep access_key ~/creds_${1}.txt | awk '{print $2}'`
+	secret=`grep secret_key ~/creds_${1}.txt | awk '{print $2}'`
+	read -r -d '' creds << EOF
+aws_access_key_id = ${key}
+aws_secret_access_key = ${secret}
+EOF
+	write_awscli_file ~/.aws/credentials ${1} "${creds}"
+}
+
+function get_ecs_sts_from_vault() {
+	vault read ${ecs_vault_endpoint}/sts/predefined/${1} | tee ~/creds_${1}.txt
 	# Update AWS CLI credentials
 	key=`grep access_key ~/creds_${1}.txt | awk '{print $2}'`
 	secret=`grep secret_key ~/creds_${1}.txt | awk '{print $2}'`
@@ -530,6 +546,13 @@ case $1 in
 			echo "Please provide a user name as an option"
 		else
 			get_ecs_predefined_from_vault $2
+		fi
+		;;
+	get_ecs_sts_from_vault)
+		if [[ $2 = "" ]]; then
+			echo "Please provide a user name as an option"
+		else
+			get_ecs_sts_from_vault $2
 		fi
 		;;
 	*)
