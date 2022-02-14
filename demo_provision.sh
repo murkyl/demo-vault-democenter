@@ -79,7 +79,7 @@ iam_users=("plugin-admin" "iam-admin1" "iam-user1")
 
 # Defining IAM Policies
 # There must be a 1 to 1 match between the iam_users and iam_policies arrays
-iam_policies=("urn:ecs:iam:::policy/IAMFullAccess" "urn:ecs:iam:::policy/ECSS3FullAccess" "urn:ecs:iam:::policy/ECSS3ReadOnlyAccess")
+iam_policies=("urn:ecs:iam:::policy/IAMFullAccess" "urn:ecs:iam:::policy/ECSS3FullAccess" "urn:ecs:iam:::policy/AllowAssumeRole")
 
 #======================================================================
 #
@@ -329,13 +329,15 @@ EOF
 }
 
 function create_ecs_users_and_policies() {
+	echo "Creating new policy to allow a user to assume a role"
 	# Create new policy which allows for STS role assumption
 	curl -ks \
 		--data-urlencode "PolicyDocument=@assume_role_policy.json" \
-		--data "PolicyName=standardUserSTS" \
+		--data "PolicyName=AllowAssumeRole" \
 		--data "Action=CreatePolicy" \
 		-H "X-SDS-AUTH-TOKEN: ${ecs_token}" \
 		"${ecs_endpoint}:${ecs_mgmt_port}/iam?"
+
 	# Create general IAM User with no permissions
 	echo "Creating new IAM users with no permission"
 	rm -f ~/log_iam_user_create.txt
