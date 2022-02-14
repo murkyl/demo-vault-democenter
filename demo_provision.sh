@@ -81,6 +81,11 @@ iam_users=("plugin-admin" "iam-admin1" "iam-user1")
 # There must be a 1 to 1 match between the iam_users and iam_policies arrays
 iam_policies=("urn:ecs:iam:::policy/IAMFullAccess" "urn:ecs:iam:::policy/ECSS3FullAccess" "urn:ecs:iam:::policy/ECSS3ReadOnlyAccess")
 
+#======================================================================
+#
+# Package and installation functions
+#
+#======================================================================
 function install_packages() {
 	# Install extra packages
 	echo "Installing additional required packages"
@@ -123,6 +128,137 @@ EOF
 	echo "    source ~/.bash_profile"
 }
 
+# Function expects 3 arguments
+# Argument 1: file name with path to modify
+# Argument 2: Header of the block to modify, e.g. "ecs" or "pscale"
+# Argument 3: Heredoc to replace the block with
+function write_awscli_file() {
+	edit_block=0
+	found=0
+	while IFS= read -r line; do
+		if [[ "${line}" =~ ^\[.*\]$ ]]; then
+			edit_block=0
+			if [ "${line}" = "[${2}]" ]; then
+				edit_block=1
+				found=1
+			fi
+		fi
+		if [[ ${edit_block} -eq 1 ]]; then
+			if [[ "${line}" = "[${2}]" ]]; then
+				echo "[${2}]"
+				echo "${3}"
+				echo ""
+			fi
+		else
+			printf '%s\n' "$line"
+		fi
+	done < ${1}
+	if [[ ${found} -eq 0 ]]; then
+		echo "[${2}]"
+		echo "${3}"
+		echo ""
+	fi
+}
+
+#======================================================================
+#
+# General Hashicorp Vault related functions
+#
+#======================================================================
+function configure_vault() {
+	# Configure Vault server
+	echo "Configuring Vault server"
+	grep -q api_addr /etc/vault.d/vault.hcl
+	if [ $? -eq 1 ]; then
+		echo "api_addr = \"http://127.0.0.1:8200\"" >> ${vault_cfg_file}
+	else
+		echo "api_addr already set in ${vault_cfg_file} file"
+	fi
+	grep -q plugin_directory /etc/vault.d/vault.hcl
+	if [ $? -eq 1 ]; then
+		echo "plugin_directory = \"/opt/vault/plugins\"" >> ${vault_cfg_file}
+	else
+		echo "plugin_directory already set in ${vault_cfg_file} file"
+	fi
+	grep -q -A2 tls_key_file /etc/vault.d/vault.hcl | grep -q tls_disable
+	if [ $? -eq 1 ]; then
+		sed -E -i "/tls_key_file.*/a\\  tls_disable = 1" ${vault_cfg_file}
+	else
+		echo "tls_disable already set in ${vault_cfg_file} file"
+	fi
+	echo "Vault server configured"
+}
+
+function start_vault() {
+	# Start Vault server
+	echo "Starting Vault service"
+	systemctl start vault.service
+	echo "Vault server started"
+}
+
+function stop_vault() {
+	# Stop Vault server
+	echo "Stopping Vault service"
+	systemctl stop vault.service
+	echo "Vault server stopped"
+}
+
+function init_vault() {
+	if [ -s ~/vault.keys ]; then
+		echo "Vault is already initialized. To reset Vault run 'rm -rf /opt/vault/data/*; rm -f ~/vault.keys'"
+	else
+		vault operator init -key-shares=1 -key-threshold=1 | grep -E "(Unseal Key|Root Token)" > ~/vault.keys
+	fi
+}
+
+function unseal_and_login_vault() {
+	echo "Unsealing Vault and logging in as root"
+	vault operator unseal `grep Unseal ~/vault.keys | awk '{ print $4 }'`
+	vault login `grep Root ~/vault.keys | awk '{ print $4 }'`
+	echo "Vault unsealed and logged in"
+}
+
+function verify_vault_plugins() {
+	unseal_and_login_vault > /dev/null
+	echo "Verifying Vault plugin installation"
+	echo "You should see ${ecs_vault_endpoint} and pscale_vault_endpoint output following this line:"
+	vault plugin list | grep -E "(${ecs_vault_endpoint}|pscale_vault_endpoint)"
+	echo "=========="
+	echo "You should see both the ${ecs_vault_endpoint}/ and pscale_vault_endpoint/ paths in the enabled plugin list:"
+	vault secrets list
+	echo "=========="
+}
+
+#======================================================================
+#
+# ObjectScale/ECS related functions
+#
+#======================================================================
+function register_ecs_plugin() {
+	# Register plugin
+	echo "Registering ECS plugin"
+	VAULT_ECS_PLUGIN_VERSION=`ls /opt/vault/plugins/${ecs_plugin_name}-linux-* | sort -R | tail -n 1 | sed 's/.*\///'`
+	VAULT_ECS_PLUGIN_SHA256=`sha256sum /opt/vault/plugins/${VAULT_ECS_PLUGIN_VERSION} | cut -d " " -f 1`
+	vault plugin register \
+		-sha256=${VAULT_ECS_PLUGIN_SHA256} \
+		-command ${VAULT_ECS_PLUGIN_VERSION} secret ${ecs_vault_endpoint}
+	vault secrets enable -path=${ecs_vault_endpoint} ${ecs_vault_endpoint}
+	echo "Plugin registered"
+}
+
+function config_ecs_plugin() {
+	# Configure ECS plugin
+	unseal_and_login_vault > /dev/null
+	echo "Configure ECS plugin"
+	# The user is actually the access key and the password is the secret generated in the init_ecs function
+	vault write ${ecs_vault_endpoint}/config/root \
+		user=`cat ~/creds_${iam_users[0]}.txt | grep access_key | awk '{print $2}'` \
+		password=`cat ~/creds_${iam_users[0]}.txt | grep secret_key | awk '{print $2}'` \
+		endpoint=${ecs_endpoint}:${ecs_mgmt_port} \
+		bypass_cert_check=true
+	vault read ${ecs_vault_endpoint}/config/root
+}
+
 function login_ecs() {
 	# Extract Management Session Token for future commands
 	export ecs_token=$(curl -k ${ecs_endpoint}:${ecs_mgmt_port}/login -u ${ecs_username}:${ecs_password} -Is | grep 'X-SDS-AUTH-TOKEN' | cut -d " " -f 2)
@@ -161,11 +297,16 @@ function reset_ecs_access_key() {
 		"${ecs_endpoint}:${ecs_mgmt_port}/iam?UserName=${1}&Action=CreateAccessKey" \
 		-H "X-SDS-AUTH-TOKEN: ${ecs_token}" \
 		> ~/creds_${1}.txt
-	sed -E -i "s/.*AccessKeyId>(.*)<\/Access.*SecretAccessKey>(.*)<\/Secret.*/\1 \2/" ~/creds_${1}.txt
+	sed -E -i "s/.*AccessKeyId>(.*)<\/Access.*SecretAccessKey>(.*)<\/Secret.*/access_key    \1\nsecret_key    \2/" ~/creds_${1}.txt
 }
 
 function get_ecs_predefined_from_vault() {
-	vault read objectscale/vault/predefined/${1} | tee ~/creds_${1}.txt
+	vault read ${ecs_vault_endpoint}/creds/predefined/${1} | tee ~/creds_${1}.txt
+	read -r -d '' creds << 'EOF'
+aws_access_key_id = `grep access_key ~/creds_${1}.txt | awk '{print $2}'`
+aws_secret_access_key = `grep secret_key ~/creds_${1}.txt | awk '{print $2}'`
+EOF
+	write_awscli_file ~/.aws/credentials ${1} ${creds}
 }
 
 function create_ecs_users_and_policies() {
@@ -220,84 +361,6 @@ function create_ecs_users_and_policies() {
 	echo "Role created"
 }
 
-function configure_vault() {
-	# Configure Vault server
-	echo "Configuring Vault server"
-	grep -q api_addr /etc/vault.d/vault.hcl
-	if [ $? -eq 1 ]; then
-		echo "api_addr = \"http://127.0.0.1:8200\"" >> ${vault_cfg_file}
-	else
-		echo "api_addr already set in ${vault_cfg_file} file"
-	fi
-	grep -q plugin_directory /etc/vault.d/vault.hcl
-	if [ $? -eq 1 ]; then
-		echo "plugin_directory = \"/opt/vault/plugins\"" >> ${vault_cfg_file}
-	else
-		echo "plugin_directory already set in ${vault_cfg_file} file"
-	fi
-	grep -q -A2 tls_key_file /etc/vault.d/vault.hcl | grep -q tls_disable
-	if [ $? -eq 1 ]; then
-		sed -E -i "/tls_key_file.*/a\\  tls_disable = 1" ${vault_cfg_file}
-	else
-		echo "tls_disable already set in ${vault_cfg_file} file"
-	fi
-	echo "Vault server configured"
-}
-
-function start_vault() {
-	# Start Vault server
-	echo "Starting Vault service"
-	systemctl start vault.service
-	echo "Vault server started"
-}
-
-function stop_vault() {
-	# Stop Vault server
-	echo "Stopping Vault service"
-	systemctl stop vault.service
-	echo "Vault server stopped"
-}
-
-function init_vault() {
-	if [ -s ~/vault.keys ]; then
-		echo "Vault is already initialized. To reset Vault run 'rm -rf /opt/vault/data/*; rm -f ~/vault.keys'"
-	else
-		vault operator init -key-shares=1 -key-threshold=1 | grep -E "(Unseal Key|Root Token)" > ~/vault.keys
-	fi
-}
-
-function unseal_and_login_vault() {
-	echo "Unsealing Vault and logging in as root"
-	vault operator unseal `grep Unseal ~/vault.keys | awk '{ print $4 }'`
-	vault login `grep Root ~/vault.keys | awk '{ print $4 }'`
-	echo "Vault unsealed and logged in"
-}
-
-function register_ecs_plugin() {
-	# Register plugin
-	echo "Registering ECS plugin"
-	VAULT_ECS_PLUGIN_VERSION=`ls /opt/vault/plugins/${ecs_plugin_name}-linux-* | sort -R | tail -n 1 | sed 's/.*\///'`
-	VAULT_ECS_PLUGIN_SHA256=`sha256sum /opt/vault/plugins/${VAULT_ECS_PLUGIN_VERSION} | cut -d " " -f 1`
-	vault plugin register \
-		-sha256=${VAULT_ECS_PLUGIN_SHA256} \
-		-command ${VAULT_ECS_PLUGIN_VERSION} secret ${ecs_vault_endpoint}
-	vault secrets enable -path=${ecs_vault_endpoint} ${ecs_vault_endpoint}
-	echo "Plugin registered"
-}
-
-function config_ecs_plugin() {
-	# Configure ECS plugin
-	unseal_and_login_vault > /dev/null
-	echo "Configure ECS plugin"
-	# The user is actually the access key and the password is the secret generated in the init_ecs function
-	vault write ${ecs_vault_endpoint}/config/root \
-		user=`cat ~/creds_${iam_users[0]}.txt | awk '{print $1}'` \
-		password=`cat ~/creds_${iam_users[0]}.txt | awk '{print $2}'` \
-		endpoint=${ecs_endpoint}:${ecs_mgmt_port} \
-		bypass_cert_check=true
-	vault read ${ecs_vault_endpoint}/config/root
-}
-
 function config_ecs_demo() {
 	# Configure the demo Vault endpoints
 	echo "Configuring ECS demo user endpoints"
@@ -318,6 +381,12 @@ function config_ecs_demo() {
 	echo "  vault read ${ecs_vault_endpoint}/creds/predefined/${iam_users[1]}"
 }
 
+#======================================================================
+#
+# PowerScale related functions
+#
+#======================================================================
+
 function register_pscale_plugin() {
 	# Register plugin
 	echo "Registering PowerScale plugin"
@@ -336,49 +405,11 @@ function config_pscale_demo() {
 	echo ""
 }
 
-function verify_vault_plugins() {
-	unseal_and_login_vault > /dev/null
-	echo "Verifying Vault plugin installation"
-	echo "You should see ${ecs_vault_endpoint} and pscale_vault_endpoint output following this line:"
-	vault plugin list | grep -E "(${ecs_vault_endpoint}|pscale_vault_endpoint)"
-	echo "=========="
-	echo "You should see both the ${ecs_vault_endpoint}/ and pscale_vault_endpoint/ paths in the enabled plugin list:"
-	vault secrets list
-	echo "=========="
-}
-
-# Function expects 3 arguments
-# Argument 1: file name with path to modify
-# Argument 2: Header of the block to modify, e.g. "ecs" or "pscale"
-# Argument 3: Heredoc to replace the block with
-function write_awscli_file() {
-	edit_block=0
-	found=0
-	while IFS= read -r line; do
-		if [[ "${line}" =~ ^\[.*\]$ ]]; then
-			edit_block=0
-			if [ "${line}" = "[${2}]" ]; then
-				edit_block=1
-				found=1
-			fi
-		fi
-		if [[ ${edit_block} -eq 1 ]]; then
-			if [[ "${line}" = "[${2}]" ]]; then
-				echo "[${2}]"
-				echo "${3}"
-				echo ""
-			fi
-		else
-			printf '%s\n' "$line"
-		fi
-	done < ${1}
-	if [[ ${found} -eq 0 ]]; then
-		echo "[${2}]"
-		echo "${3}"
-		echo ""
-	fi
-}
-
+#======================================================================
+#
+# CLI menu
+#
+#======================================================================
 if [ $# -eq 0 ]; then
 	echo "$USAGE"
 	exit 1
