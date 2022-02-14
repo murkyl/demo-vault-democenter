@@ -28,7 +28,7 @@ register_ecs_plugin
 config_ecs_plugin
 	- Configure the ObjectScale plugin (endpoint and credentials)
 config_ecs_demo
-	-	Setup ObjectScale demo endpoints
+	- Setup ObjectScale demo endpoints
 register_pscale_plugin
 	- Register PowerScale plugin into Vault
 config_pscale_plugin
@@ -137,7 +137,7 @@ function logout_ecs() {
 
 function reset_access_key_for_user() {
 	curl -ks -X\
-		POST "${ecs_endpoint}:${ecs_mgmt_[rt}/iam?Action=ListAccessKeys&UserName=${1}" \
+		POST "${ecs_endpoint}:${ecs_mgmt_port}/iam?Action=ListAccessKeys&UserName=${1}" \
 		-H "Accept: application/json"
 		-H "X-SDS-AUTH-TOKEN: ${ecs_token}" 
 	curl -ks -X \
