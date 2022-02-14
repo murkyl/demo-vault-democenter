@@ -298,10 +298,17 @@ function reset_ecs_access_key() {
 		-H "X-SDS-AUTH-TOKEN: ${ecs_token}" \
 		> ~/creds_${1}.txt
 	sed -E -i "s/.*AccessKeyId>(.*)<\/Access.*SecretAccessKey>(.*)<\/Secret.*/access_key    \1\nsecret_key    \2\n/" ~/creds_${1}.txt
+	# Update AWS CLI credentials
+	read -r -d '' creds << 'EOF'
+aws_access_key_id = `grep access_key ~/creds_${1}.txt | awk '{print $2}'`
+aws_secret_access_key = `grep secret_key ~/creds_${1}.txt | awk '{print $2}'`
+EOF
+	write_awscli_file ~/.aws/credentials ${1} ${creds}
 }
 
 function get_ecs_predefined_from_vault() {
 	vault read ${ecs_vault_endpoint}/creds/predefined/${1} | tee ~/creds_${1}.txt
+	# Update AWS CLI credentials
 	read -r -d '' creds << 'EOF'
 aws_access_key_id = `grep access_key ~/creds_${1}.txt | awk '{print $2}'`
 aws_secret_access_key = `grep secret_key ~/creds_${1}.txt | awk '{print $2}'`
