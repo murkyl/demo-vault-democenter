@@ -3,7 +3,7 @@ IFS='' read -r -d '' USAGE << EOF
 Usage: demo_provision.sh <operation>
 
 Quickstart:
-Execute the script with the 'all' operation to setup both ObjectScale and PowerScale demos
+Run the script with 'all' to setup ObjectScale and PowerScale demos
     ./demo_provision.sh all
 
 Valid operations:
@@ -135,6 +135,7 @@ EOF
 function write_awscli_file() {
 	edit_block=0
 	found=0
+	rm -f ${1}
 	while IFS= read -r line; do
 		if [[ "${line}" =~ ^\[.*\]$ ]]; then
 			edit_block=0
@@ -145,18 +146,18 @@ function write_awscli_file() {
 		fi
 		if [[ ${edit_block} -eq 1 ]]; then
 			if [[ "${line}" = "[${2}]" ]]; then
-				echo "[${2}]"
-				echo "${3}"
-				echo ""
+				echo "[${2}]" >> ${1}
+				echo "${3}" >> ${1}
+				echo "" >> ${1}
 			fi
 		else
-			printf '%s\n' "$line"
+			echo "${line}" >> ${1}
 		fi
 	done < ${1}
 	if [[ ${found} -eq 0 ]]; then
-		echo "[${2}]"
-		echo "${3}"
-		echo ""
+		echo "[${2}]" >> ${1}
+		echo "${3}" >> ${1}
+		echo "" >> ${1}
 	fi
 }
 
