@@ -334,8 +334,11 @@ EOF
 	write_awscli_file ~/.aws/credentials ${1} "${creds}"
 }
 
+# Function expects 2 arguments
+# Argument 1: user name
+# Argument 2: ARN of a role, e.g. urn:ecs:iam::ns1:role/admin
 function get_ecs_sts_from_vault() {
-	vault read ${ecs_vault_endpoint}/sts/predefined/${1} | tee ~/creds_${1}.txt
+	vault read ${ecs_vault_endpoint}/sts/predefined/${1} role_arn=${2}| tee ~/creds_${1}.txt
 	# Update AWS CLI credentials
 	key=`grep access_key ~/creds_${1}.txt | awk '{print $2}'`
 	secret=`grep secret_key ~/creds_${1}.txt | awk '{print $2}'`
@@ -551,10 +554,11 @@ case $1 in
 		fi
 		;;
 	get_ecs_sts_from_vault)
-		if [[ $2 = "" ]]; then
-			echo "Please provide a user name as an option"
+		if [[ $2 = "" ]] || [[ $3 = "" ]]; then
+			echo "Please provide a user name and a role ARN as options"
+			echo "e.g. iam-user1 urn:ecs:iam::ns1:role/admins"
 		else
-			get_ecs_sts_from_vault $2
+			get_ecs_sts_from_vault $2 $3
 		fi
 		;;
 	*)
