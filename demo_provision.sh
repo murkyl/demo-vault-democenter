@@ -247,7 +247,7 @@ function print_expire_date() {
 		future=$(expr $now + $1)
 		echo -n `date --date="@${future}"`
 	fi
-	echo ""
+	echo ", time is currently: `date`"
 }
 
 #======================================================================
