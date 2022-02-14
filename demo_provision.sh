@@ -109,6 +109,7 @@ function install_packages() {
 	wget -N -P /opt/vault/plugins https://github.com/murkyl/${ecs_plugin_name}/releases/download/v${ecs_plugin_ver}/${ecs_plugin_name}-linux-amd64-${ecs_plugin_ver}
 	wget -N -P /opt/vault/plugins https://github.com/murkyl/${pscale_plugin_name}/releases/download/v${pscale_plugin_ver}/${pscale_plugin_name}-linux-amd64-${pscale_plugin_ver}
 	wget -N https://raw.githubusercontent.com/murkyl/demo-vault-democenter/main/role_iam-user1.json
+	wget -N https://raw.githubusercontent.com/murkyl/demo-vault-democenter/main/assume_role_policy.json
 	wget -N https://raw.githubusercontent.com/EMCECS/s3curl/master/s3curl.pl
 	chmod 755 /opt/vault/plugins/*
 	chown -R vault:vault /opt/vault/plugins
@@ -328,6 +329,13 @@ EOF
 }
 
 function create_ecs_users_and_policies() {
+	# Create new policy which allows for STS role assumption
+	curl -ks \
+		--data-urlencode "PolicyDocument=@assume_role_policy.json" \
+		--data "PolicyName=standardUserSTS" \
+		--data "Action=CreatePolicy" \
+		-H "X-SDS-AUTH-TOKEN: ${ecs_token}" \
+		"${ecs_endpoint}:${ecs_mgmt_port}/iam?"
 	# Create general IAM User with no permissions
 	echo "Creating new IAM users with no permission"
 	rm -f ~/log_iam_user_create.txt
