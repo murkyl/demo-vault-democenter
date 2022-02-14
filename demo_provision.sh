@@ -128,7 +128,7 @@ function install_packages() {
 function install_env() {
 	grep -q VAULT_ADDR ~/.bash_profile
 	if [ $? -eq 1 ]; then
-		cat << EOF > ~/.bash_profile
+		cat << EOF >> ~/.bash_profile
 VAULT_ADDR=${VAULT_ADDR}
 export VAULT_ADDR
 alias ecsiamuser1='aws --profile=iam-user1 --endpoint-url=${ecs_endpoint}:${ecs_data_port}'
@@ -137,8 +137,8 @@ alias ecsdynamic='aws --profile=dynamic --endpoint-url=${ecs_endpoint}:${ecs_dat
 alias ecssts='s3curlwrapper'
 
 function strips3prefix() {
-  if [[ $1 =~ s3://.* ]]; then
-    echo "${1:5}"
+  if [[ \$1 =~ s3://.* ]]; then
+    echo "\${1:5}"
   fi
 }
 
@@ -147,24 +147,24 @@ function strips3prefix() {
 # Arg 2: Operation/Command, currently can have 'mb' and 'cp'
 # Arg 3: Depends on operation
 function s3curlwrapper() {
-  op="${2}"
-  if [[ "$1" != "s3" ]]; then
+  op="\${2}"
+  if [[ "\$1" != "s3" ]]; then
     op="help"
   fi
-  token=`grep security_token ~/creds_stsuser.txt | awk '{ print $2 }'`
-  case $op in
+  token=`grep security_token ~/creds_stsuser.txt | awk '{ print \$2 }'`
+  case \$op in
     mb)
-      if [ $token = "" ]; then
+      if [ \$token = "" ]; then
         echo "Missing security token in ~/creds_stsuser.txt"
       else
-        ~/.s3curl.pl --id=ecs --createBucket -- -H "X-Amz-Security-Token: ${token}" "${ecs_endpoint}:${ecs_data_port}/$(strips3prefix ${3})"
+        ~/.s3curl.pl --id=ecs --createBucket -- -H "X-Amz-Security-Token: \${token}" "${ecs_endpoint}:${ecs_data_port}/\$(strips3prefix \${3})"
       fi
       ;;
     cp)
-      if [ $token = "" ]; then
+      if [ \$token = "" ]; then
         echo "Missing security token in ~/creds_stsuser.txt"
       else
-        ~/.s3curl.pl --id=ecs --put=${3} -- -H "X-Amz-Security-Token: ${token}" "${ecs_endpoint}:${ecs_data_port}/$(strips3prefix ${4})/$(strips3prefix ${3})"
+        ~/.s3curl.pl --id=ecs --put=\${3} -- -H "X-Amz-Security-Token: \${token}" "${ecs_endpoint}:${ecs_data_port}/\$(strips3prefix \${4})/\$(strips3prefix \${3})"
       fi
       ;;
     *)
