@@ -39,19 +39,21 @@ verify_vault_plugins
 	- Verify if the Vault plugins are installed and enabled
 reset_ecs_access_key <username>
 	- Reset a user's access key
-get_ecs_predefined_from_vault <username>
+get_ecs_predefined <username>
 	- Get ECS predefined access key, save to ~/creds_<username>.txt, and add to the AWS CLI config
 	  Use alias: ecsiamuser1 or ecsiamadmin1
-get_ecs_dynamic_from_vault <username>
+get_ecs_dynamic <username>
 	- Get ECS dynamic access key, save to ~/creds_dynamic.txt, and add to the AWS CLI config
 	  Use alias: ecsdynamic
-get_ecs_sts_from_vault <username>
+get_ecs_sts <username>
 	- Get ECS STS access key, save to ~/creds_<username>.txt, and add to the AWS CLI config
 EOF
 
 # Define common variables with defaults. You can override these from the shell by setting the environment variables appropriately
 vault_ver="${VAULT_VER:=vault-1.7.3}"
 vault_cfg_file="${VAULT_CFG_FILE:=/etc/vault.d/vault.hcl}"
+vault_default_expire=300
+vault_default_sts_expire=3600
 ecs_endpoint="${ECS_ENDPOINT:=https://ecs.demo.local}"
 ecs_mgmt_port="${ECS_MGMT_PORT:=4443}"
 ecs_data_endpoint="${ECS_DATA_ENDPOINT:=http://ecs.demo.local}"
@@ -396,7 +398,7 @@ EOF
 	write_awscli_file ~/.aws/credentials ${1} "${creds}"
 }
 
-function get_ecs_predefined_from_vault() {
+function get_ecs_predefined() {
 	vault read ${ecs_vault_endpoint}/creds/predefined/${1} | tee ~/creds_${1}.txt
 	# Update AWS CLI credentials
 	key=`grep access_key ~/creds_${1}.txt | awk '{print $2}'`
@@ -406,9 +408,10 @@ aws_access_key_id = ${key}
 aws_secret_access_key = ${secret}
 EOF
 	write_awscli_file ~/.aws/credentials ${1} "${creds}"
+	print_expire_date ${vault_default_expire}
 }
 
-function get_ecs_dynamic_from_vault() {
+function get_ecs_dynamic() {
 	vault read ${ecs_vault_endpoint}/creds/dynamic/${1} | tee ~/creds_dynamic.txt
 	# Update AWS CLI credentials
 	key=`grep access_key ~/creds_dynamic.txt | awk '{print $2}'`
@@ -418,15 +421,17 @@ aws_access_key_id = ${key}
 aws_secret_access_key = ${secret}
 EOF
 	write_awscli_file ~/.aws/credentials dynamic "${creds}"
+	print_expire_date ${vault_default_expire}
 }
 
 # Function expects 2 arguments
 # Argument 1: user name
 # Argument 2: ARN of a role, e.g. urn:ecs:iam::ns1:role/admin
-function get_ecs_sts_from_vault() {
+function get_ecs_sts() {
 	vault read ${ecs_vault_endpoint}/sts/predefined/${1} role_arn=${2}| tee ~/creds_${1}.txt
 	# Update AWS CLI credentials
 	write_s3curl_file ~/.s3curl $key $secret
+	print_expire_date ${vault_default_sts_expire}
 }
 
 function create_ecs_users_and_policies() {
@@ -496,7 +501,7 @@ function config_ecs_demo() {
 	unseal_and_login_vault > /dev/null
 	vault write ${ecs_vault_endpoint}/roles/predefined/${iam_users[1]} namespace=ns1
 	vault write ${ecs_vault_endpoint}/roles/predefined/${iam_users[2]} namespace=ns1
-	vault write ${ecs_vault_endpoint}/roles/dynamic/${ecs_dynamic_role_1} namespace=ns1 policy=IAMReadOnlyAccess
+	vault write ${ecs_vault_endpoint}/roles/dynamic/${ecs_dynamic_role_1} namespace=ns1 policy=ECSS3ReadOnlyAccess
 	echo "Demo endpoints configured"
 	echo "Usable endpoints"
 	echo "    # Rotate access key and secret"
@@ -626,26 +631,26 @@ case $1 in
 			logout_ecs
 		fi
 		;;
-	get_ecs_predefined_from_vault)
+	get_ecs_predefined)
 		if [[ $2 = "" ]]; then
 			echo "Please provide a user name as an option"
 		else
-			get_ecs_predefined_from_vault $2
+			get_ecs_predefined $2
 		fi
 		;;
-	get_ecs_dynamic_from_vault)
+	get_ecs_dynamic)
 		if [[ $2 = "" ]]; then
 			echo "Please provide a user name as an option"
 		else
-			get_ecs_dynamic_from_vault $2
+			get_ecs_dynamic $2
 		fi
 		;;
-	get_ecs_sts_from_vault)
+	get_ecs_sts)
 		if [[ $2 = "" ]] || [[ $3 = "" ]]; then
 			echo "Please provide a user name and a role ARN as options"
 			echo "e.g. iam-user1 urn:ecs:iam::ns1:role/admins"
 		else
-			get_ecs_sts_from_vault $2 $3
+			get_ecs_sts $2 $3
 		fi
 		;;
 	*)
