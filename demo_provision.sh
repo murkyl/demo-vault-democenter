@@ -86,6 +86,18 @@ iam_policies=("urn:ecs:iam:::policy/IAMFullAccess" "urn:ecs:iam:::policy/ECSS3Fu
 # Package and installation functions
 #
 #======================================================================
+function reset_aws_config() {
+	# Create AWS Cli configuration files
+	mkdir -p ~/.aws
+	chmod 755 ~/.aws
+	echo "[default]" > ~/.aws/config
+	echo "region = \"\"" >> ~/.aws/config
+	echo "[default]" > ~/.aws/credentials
+	echo "aws_access_key_id = \"\"" >> ~/.aws/credentials
+	echo "aws_secret_access_key = \"\"" >> ~/.aws/credentials
+	chmod 600 ~/.aws/*
+}
+
 function install_packages() {
 	# Install extra packages
 	echo "Installing additional required packages"
@@ -99,15 +111,7 @@ function install_packages() {
 	wget -N https://raw.githubusercontent.com/EMCECS/s3curl/master/s3curl.pl
 	chmod 755 /opt/vault/plugins/*
 	chown -R vault:vault /opt/vault/plugins
-	# Create AWS Cli configuration files
-	mkdir -p ~/.aws
-	chmod 755 ~/.aws
-	echo "[default]" > ~/.aws/config
-	echo "region = \"\"" >> ~/.aws/config
-	echo "[default]" > ~/.aws/credentials
-	echo "aws_access_key_id = \"\"" >> ~/.aws/credentials
-	echo "aws_secret_access_key = \"\"" >> ~/.aws/credentials
-	chmod 600 ~/.aws/*
+	reset_aws_config
 	echo "Packages installed"
 }
 
@@ -492,6 +496,9 @@ case $1 in
 		;;
 	verify_vault_plugins)
 		verify_vault_plugins
+		;;
+	reset_aws_config)
+		reset_aws_config
 		;;
 	reset_ecs_access_key)
 		if [[ $2 = "" ]]; then
