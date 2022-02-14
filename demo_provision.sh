@@ -135,7 +135,6 @@ EOF
 function write_awscli_file() {
 	edit_block=0
 	found=0
-	rm -f ${1}
 	while IFS= read -r line; do
 		if [[ "${line}" =~ ^\[.*\]$ ]]; then
 			edit_block=0
@@ -146,19 +145,20 @@ function write_awscli_file() {
 		fi
 		if [[ ${edit_block} -eq 1 ]]; then
 			if [[ "${line}" = "[${2}]" ]]; then
-				echo "[${2}]" >> ${1}
-				echo "${3}" >> ${1}
-				echo "" >> ${1}
+				echo "[${2}]" >> ${1}.tmp
+				echo "${3}" >> ${1}.tmp
+				echo "" >> ${1}.tmp
 			fi
 		else
-			echo "${line}" >> ${1}
+			echo "${line}" >> ${1}.tmp
 		fi
 	done < ${1}
 	if [[ ${found} -eq 0 ]]; then
-		echo "[${2}]" >> ${1}
-		echo "${3}" >> ${1}
-		echo "" >> ${1}
+		echo "[${2}]" >> ${1}.tmp
+		echo "${3}" >> ${1}.tmp
+		echo "" >> ${1}.tmp
 	fi
+	mv -f ${1}.tmp ${1}
 }
 
 #======================================================================
