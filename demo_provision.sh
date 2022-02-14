@@ -12,7 +12,7 @@ all
 install
 	- Install packages and plugins
 init_ecs
-	- Setup ECS by creating users and policies. Clears existing keys if they exist.
+	- Setup ECS with users and policies. Clears existing keys
 configure_vault
 	- Configure Vault configuration file
 start_vault
@@ -40,7 +40,7 @@ verify_vault_plugins
 reset_ecs_access_key <username>
 	- Reset a user's access key
 get_ecs_predefined_from_vault <username>
-	- Get a new ECS predefined access key, save to ~/.creds_<username>.txt, and add to the AWS CLI config
+	- Get ECS predefined access key, save to ~/.creds_<username>.txt, and add to the AWS CLI config
 EOF
 
 # Define common variables with defaults. You can override these from the shell by setting the environment variables appropriately
@@ -117,8 +117,8 @@ function install_env() {
 		cat << EOF > ~/.bash_profile
 VAULT_ADDR=${VAULT_ADDR}
 export VAULT_ADDR
-alias ecsiamuser1='aws --profile=iamuser1 --endpoint-url=http://ecs.demo.local:9020'
-alias ecsiamadmin1='aws --profile=iamadmin1 --endpoint-url=http://ecs.demo.local:9020'
+alias ecsiamuser1='aws --profile=iam-user1 --endpoint-url=http://ecs.demo.local:9020'
+alias ecsiamadmin1='aws --profile=iam-admin1 --endpoint-url=http://ecs.demo.local:9020'
 EOF
 	fi
 	echo "VAULT_ADDR environment variable written to ~/.bash_profile"
@@ -297,7 +297,7 @@ function reset_ecs_access_key() {
 		"${ecs_endpoint}:${ecs_mgmt_port}/iam?UserName=${1}&Action=CreateAccessKey" \
 		-H "X-SDS-AUTH-TOKEN: ${ecs_token}" \
 		> ~/creds_${1}.txt
-	sed -E -i "s/.*AccessKeyId>(.*)<\/Access.*SecretAccessKey>(.*)<\/Secret.*/access_key    \1\nsecret_key    \2/" ~/creds_${1}.txt
+	sed -E -i "s/.*AccessKeyId>(.*)<\/Access.*SecretAccessKey>(.*)<\/Secret.*/access_key    \1\nsecret_key    \2\n/" ~/creds_${1}.txt
 }
 
 function get_ecs_predefined_from_vault() {
@@ -418,17 +418,20 @@ fi
 case $1 in
 	all)
 		install_packages
-		login_ecs
-		create_ecs_users_and_policies
-		logout_ecs
 		configure_vault
 		start_vault
 		echo "Sleeping for 2 seconds waiting for Vault to start"
 		sleep 2
 		init_vault
 		unseal_and_login_vault
+
+		login_ecs
+		create_ecs_users_and_policies
+		logout_ecs
+
 		register_ecs_plugin
 		register_pscale_plugin
+
 		config_ecs_plugin
 		config_pscale_plugin
 		config_ecs_demo
