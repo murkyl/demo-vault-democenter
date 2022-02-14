@@ -155,7 +155,7 @@ function s3curlwrapper() {
   if [[ "\$1" != "s3" ]]; then
     op="help"
   fi
-  token=`grep security_token ~/creds_stsuser.txt | awk '{ print \$2 }'`
+  token=\`grep security_token ~/creds_stsuser.txt | awk '{ print \$2 }'\`
   case \$op in
     mb)
       if [ \$token = "" ]; then
@@ -423,7 +423,8 @@ function get_ecs_dynamic() {
 # Argument 1: user name
 # Argument 2: ARN of a role, e.g. urn:ecs:iam::ns1:role/admin
 function get_ecs_sts() {
-	vault read ${ecs_vault_endpoint}/sts/predefined/${1} role_arn=${2}| tee ~/creds_${1}.txt
+	vault read ${ecs_vault_endpoint}/sts/predefined/${1} role_arn=${2} | tee ~/creds_${1}.txt
+	cp -f ~/creds_${1}.txt ~/creds_stsuser.txt
 	# Update AWS CLI credentials
 	key=`grep access_key ~/creds_${1}.txt | awk '{print $2}'`
 	secret=`grep secret_key ~/creds_${1}.txt | awk '{print $2}'`
