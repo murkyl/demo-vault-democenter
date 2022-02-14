@@ -235,6 +235,7 @@ function write_s3curl_file() {
 );
 EOF
 	echo "${creds}" > ${1}
+	chmod 600 ${1}
 }
 
 function print_expire_date() {
