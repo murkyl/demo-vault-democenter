@@ -1,12 +1,12 @@
 {
-	"Version": "2021-10-17",
-	"Statement": [
-		{
-			"Effect": "Allow",
-			"Principal": {
-				"AWS": "urn:ecs:iam::ns1:user/iam-user1"
-			},
-			"Action": "sts:AssumeRole"
-		}
-	]
+  "Version": "2021-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "urn:ecs:iam::ns1:user/iam-user1"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
 }

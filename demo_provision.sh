@@ -40,9 +40,13 @@ verify_vault_plugins
 reset_ecs_access_key <username>
 	- Reset a user's access key
 get_ecs_predefined_from_vault <username>
-	- Get ECS predefined access key, save to ~/.creds_<username>.txt, and add to the AWS CLI config
+	- Get ECS predefined access key, save to ~/creds_<username>.txt, and add to the AWS CLI config
+	  Use alias: ecsiamuser1 or ecsiamadmin1
+get_ecs_dynamic_from_vault <username>
+	- Get ECS dynamic access key, save to ~/creds_dynamic.txt, and add to the AWS CLI config
+	  Use alias: ecsdynamic
 get_ecs_sts_from_vault <username>
-	- Get ECS STS access key, save to ~/.creds_<username>.txt, and add to the AWS CLI config
+	- Get ECS STS access key, save to ~/creds_<username>.txt, and add to the AWS CLI config
 EOF
 
 # Define common variables with defaults. You can override these from the shell by setting the environment variables appropriately
@@ -50,6 +54,7 @@ vault_ver="${VAULT_VER:=vault-1.7.3}"
 vault_cfg_file="${VAULT_CFG_FILE:=/etc/vault.d/vault.hcl}"
 ecs_endpoint="${ECS_ENDPOINT:=https://ecs.demo.local}"
 ecs_mgmt_port="${ECS_MGMT_PORT:=4443}"
+ecs_data_port="${ECS_DATA_PORT:=9020}"
 ecs_plugin_ver="${ECS_PLUGIN_VER:=0.4.3}"
 ecs_plugin_name="${ECS_PLUGIN_NAME:=vault-plugin-secrets-objectscale}"
 ecs_vault_endpoint="${ECS_VAULT_ENDPOINT:=objectscale}"
@@ -85,7 +90,7 @@ iam_policies=("urn:ecs:iam:::policy/IAMFullAccess" "urn:ecs:iam:::policy/ECSS3Fu
 
 #======================================================================
 #
-# Package and installation functions
+# Package, install, and misc functions
 #
 #======================================================================
 function reset_aws_config() {
@@ -104,7 +109,7 @@ function reset_aws_config() {
 function install_packages() {
 	# Install extra packages
 	echo "Installing additional required packages"
-	yum install -y yum-utils awscli
+	yum install -y yum-utils awscli perl-Digest-HMAC
 	yum-config-manager --add-repo https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo
 	yum install -y ${vault_ver}
 	mkdir /opt/vault/plugins
@@ -113,6 +118,7 @@ function install_packages() {
 	wget -N https://raw.githubusercontent.com/murkyl/demo-vault-democenter/main/role_iam-user1.json
 	wget -N https://raw.githubusercontent.com/murkyl/demo-vault-democenter/main/assume_role_policy.json
 	wget -N https://raw.githubusercontent.com/EMCECS/s3curl/master/s3curl.pl
+	chmod a+x ~/s3curl.pl
 	chmod 755 /opt/vault/plugins/*
 	chown -R vault:vault /opt/vault/plugins
 	reset_aws_config
@@ -125,13 +131,56 @@ function install_env() {
 		cat << EOF > ~/.bash_profile
 VAULT_ADDR=${VAULT_ADDR}
 export VAULT_ADDR
-alias ecsiamuser1='aws --profile=iam-user1 --endpoint-url=http://ecs.demo.local:9020'
-alias ecsiamadmin1='aws --profile=iam-admin1 --endpoint-url=http://ecs.demo.local:9020'
+alias ecsiamuser1='aws --profile=iam-user1 --endpoint-url=${ecs_endpoint}:${ecs_data_port}'
+alias ecsiamadmin1='aws --profile=iam-admin1 --endpoint-url=${ecs_endpoint}:${ecs_data_port}'
+alias ecsdynamic='aws --profile=dynamic --endpoint-url=${ecs_endpoint}:${ecs_data_port}'
+alias ecssts='s3curlwrapper'
+
+function strips3prefix() {
+  if [[ $1 =~ s3://.* ]]; then
+    echo "${1:5}"
+  fi
+}
+
+# 3 function arguments
+# Arg 1: Always s3
+# Arg 2: Operation/Command, currently can have 'mb' and 'cp'
+# Arg 3: Depends on operation
+function s3curlwrapper() {
+  op="${2}"
+  if [[ "$1" != "s3" ]]; then
+    op="help"
+  fi
+  token=`grep security_token ~/creds_stsuser.txt | awk '{ print $2 }'`
+  case $op in
+    mb)
+      if [ $token = "" ]; then
+        echo "Missing security token in ~/creds_stsuser.txt"
+      else
+        ~/.s3curl.pl --id=ecs --createBucket -- -H "X-Amz-Security-Token: ${token}" "${ecs_endpoint}:${ecs_data_port}/$(strips3prefix ${3})"
+      fi
+      ;;
+    cp)
+      if [ $token = "" ]; then
+        echo "Missing security token in ~/creds_stsuser.txt"
+      else
+        ~/.s3curl.pl --id=ecs --put=${3} -- -H "X-Amz-Security-Token: ${token}" "${ecs_endpoint}:${ecs_data_port}/$(strips3prefix ${4})/$(strips3prefix ${3})"
+      fi
+      ;;
+    *)
+      echo "s3curlwrapper pretends to be the aws CLI command"
+      echo "Usage:"
+      echo "s3curlwrapper s3 mb s3://<bucketname>"
+      echo "s3curlwrapper s3 cp <filename> s3://<bucketname>"
+      ;;
+  esac
+}
+
 EOF
 	fi
 	echo "VAULT_ADDR environment variable written to ~/.bash_profile"
 	echo "Aliases wrapping the AWS cli command written to ~/.bash_profile"
-	echo "    Aliases: ecsiamuser1, ecsiamadmin1"
+	echo "    Aliases: ecsiamuser1, ecsiamadmin1, ecsdynamic, ecssts"
 	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 	echo "You MUST manually source this file to update your environment"
@@ -171,6 +220,30 @@ function write_awscli_file() {
 		echo "" >> ${1}.tmp
 	fi
 	mv -f ${1}.tmp ${1}
+}
+
+function write_s3curl_file() {
+	read -r -d '' creds << EOF
+%awsSecretAccessKeys = (
+    ecs => {
+        id => '${2}',
+        key => '${3}',
+    },
+);
+EOF
+	echo "${creds}" > ${1}
+}
+
+function print_expire_date() {
+	now=`date +"%s"`
+	echo "Credentials will expire at: "
+	if [[ $1 = "" ]]; then
+		echo -n `date`
+	else
+		future=$(expr $now + $1)
+		echo -n `date --date="@${future}"`
+	fi
+	echo ""
 }
 
 #======================================================================
@@ -334,19 +407,25 @@ EOF
 	write_awscli_file ~/.aws/credentials ${1} "${creds}"
 }
 
+function get_ecs_dynamic_from_vault() {
+	vault read ${ecs_vault_endpoint}/creds/dynamic/${1} | tee ~/creds_dynamic.txt
+	# Update AWS CLI credentials
+	key=`grep access_key ~/creds_dynamic.txt | awk '{print $2}'`
+	secret=`grep secret_key ~/creds_dynamic.txt | awk '{print $2}'`
+	read -r -d '' creds << EOF
+aws_access_key_id = ${key}
+aws_secret_access_key = ${secret}
+EOF
+	write_awscli_file ~/.aws/credentials dynamic "${creds}"
+}
+
 # Function expects 2 arguments
 # Argument 1: user name
 # Argument 2: ARN of a role, e.g. urn:ecs:iam::ns1:role/admin
 function get_ecs_sts_from_vault() {
 	vault read ${ecs_vault_endpoint}/sts/predefined/${1} role_arn=${2}| tee ~/creds_${1}.txt
 	# Update AWS CLI credentials
-	key=`grep access_key ~/creds_${1}.txt | awk '{print $2}'`
-	secret=`grep secret_key ~/creds_${1}.txt | awk '{print $2}'`
-	read -r -d '' creds << EOF
-aws_access_key_id = ${key}
-aws_secret_access_key = ${secret}
-EOF
-	write_awscli_file ~/.aws/credentials ${1} "${creds}"
+	write_s3curl_file ~/.s3curl $key $secret
 }
 
 function create_ecs_users_and_policies() {
@@ -551,6 +630,13 @@ case $1 in
 			echo "Please provide a user name as an option"
 		else
 			get_ecs_predefined_from_vault $2
+		fi
+		;;
+	get_ecs_dynamic_from_vault)
+		if [[ $2 = "" ]]; then
+			echo "Please provide a user name as an option"
+		else
+			get_ecs_dynamic_from_vault $2
 		fi
 		;;
 	get_ecs_sts_from_vault)
