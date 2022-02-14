@@ -54,6 +54,7 @@ vault_ver="${VAULT_VER:=vault-1.7.3}"
 vault_cfg_file="${VAULT_CFG_FILE:=/etc/vault.d/vault.hcl}"
 ecs_endpoint="${ECS_ENDPOINT:=https://ecs.demo.local}"
 ecs_mgmt_port="${ECS_MGMT_PORT:=4443}"
+ecs_data_endpoint="${ECS_DATA_ENDPOINT:=http://ecs.demo.local}"
 ecs_data_port="${ECS_DATA_PORT:=9020}"
 ecs_plugin_ver="${ECS_PLUGIN_VER:=0.4.3}"
 ecs_plugin_name="${ECS_PLUGIN_NAME:=vault-plugin-secrets-objectscale}"
@@ -131,9 +132,9 @@ function install_env() {
 		cat << EOF >> ~/.bash_profile
 VAULT_ADDR=${VAULT_ADDR}
 export VAULT_ADDR
-alias ecsiamuser1='aws --profile=iam-user1 --endpoint-url=${ecs_endpoint}:${ecs_data_port}'
-alias ecsiamadmin1='aws --profile=iam-admin1 --endpoint-url=${ecs_endpoint}:${ecs_data_port}'
-alias ecsdynamic='aws --profile=dynamic --endpoint-url=${ecs_endpoint}:${ecs_data_port}'
+alias ecsiamuser1='aws --profile=iam-user1 --endpoint-url=${ecs_data_endpoint}:${ecs_data_port}'
+alias ecsiamadmin1='aws --profile=iam-admin1 --endpoint-url=${ecs_data_endpoint}:${ecs_data_port}'
+alias ecsdynamic='aws --profile=dynamic --endpoint-url=${ecs_data_endpoint}:${ecs_data_port}'
 alias ecssts='s3curlwrapper'
 
 function strips3prefix() {
@@ -157,14 +158,14 @@ function s3curlwrapper() {
       if [ \$token = "" ]; then
         echo "Missing security token in ~/creds_stsuser.txt"
       else
-        ~/.s3curl.pl --id=ecs --createBucket -- -H "X-Amz-Security-Token: \${token}" "${ecs_endpoint}:${ecs_data_port}/\$(strips3prefix \${3})"
+        ~/.s3curl.pl --id=ecs --createBucket -- -H "X-Amz-Security-Token: \${token}" "${ecs_data_endpoint}:${ecs_data_port}/\$(strips3prefix \${3})"
       fi
       ;;
     cp)
       if [ \$token = "" ]; then
         echo "Missing security token in ~/creds_stsuser.txt"
       else
-        ~/.s3curl.pl --id=ecs --put=\${3} -- -H "X-Amz-Security-Token: \${token}" "${ecs_endpoint}:${ecs_data_port}/\$(strips3prefix \${4})/\$(strips3prefix \${3})"
+        ~/.s3curl.pl --id=ecs --put=\${3} -- -H "X-Amz-Security-Token: \${token}" "${ecs_data_endpoint}:${ecs_data_port}/\$(strips3prefix \${4})/\$(strips3prefix \${3})"
       fi
       ;;
     *)
