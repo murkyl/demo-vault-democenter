@@ -161,14 +161,14 @@ function s3curlwrapper() {
       if [ \$token = "" ]; then
         echo "Missing security token in ~/creds_stsuser.txt"
       else
-        ~/.s3curl.pl --id=ecs --createBucket -- -H "X-Amz-Security-Token: \${token}" "${ecs_data_endpoint}:${ecs_data_port}/\$(strips3prefix \${3})"
+        ~/s3curl.pl --id=ecs --createBucket -- -H "X-Amz-Security-Token: \${token}" "${ecs_data_endpoint}:${ecs_data_port}/\$(strips3prefix \${3})"
       fi
       ;;
     cp)
       if [ \$token = "" ]; then
         echo "Missing security token in ~/creds_stsuser.txt"
       else
-        ~/.s3curl.pl --id=ecs --put=\${3} -- -H "X-Amz-Security-Token: \${token}" "${ecs_data_endpoint}:${ecs_data_port}/\$(strips3prefix \${4})/\$(strips3prefix \${3})"
+        ~/s3curl.pl --id=ecs --put=\${3} -- -H "X-Amz-Security-Token: \${token}" "${ecs_data_endpoint}:${ecs_data_port}/\$(strips3prefix \${4})/\$(strips3prefix \${3})"
       fi
       ;;
     *)
