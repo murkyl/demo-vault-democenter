@@ -37,6 +37,8 @@ config_pscale_demo
 	- Setup PowerScale demo endpoints
 verify_vault_plugins
 	- Verify if the Vault plugins are installed and enabled
+reset_ecs_access_key
+	- Reset a specific ECS user's access key. Usage: demo_provision.sh reset_ecs_access_key <username>
 EOF
 
 # Define common variables with defaults. You can override these from the shell by setting the environment variables appropriately
@@ -135,17 +137,33 @@ function logout_ecs() {
 	unset ecs_token
 }
 
-function reset_access_key_for_user() {
-	curl -ks -X\
+function reset_ecs_access_key() {
+	tag="accesskey"
+	# Get list of current user's access key
+	key_list=`curl -ks -X\
 		POST "${ecs_endpoint}:${ecs_mgmt_port}/iam?Action=ListAccessKeys&UserName=${1}" \
-		-H "Accept: application/json"
-		-H "X-SDS-AUTH-TOKEN: ${ecs_token}" 
+		-H "Accept: application/xml" \
+		-H "X-SDS-AUTH-TOKEN: ${ecs_token}"` | \
+		sed -E -e "s~(.*)</${tag}>.*~\1~" -e "s~</${tag}>.*<${tag}>~ ~" -e "s~.*?<${tag}>~~"
+	# Delete all access keys
+	for key in ${key_list}; do
+		curl -ks -X \
+			POST \
+			"${ecs_endpoint}:${ecs_mgmt_port}/iam?UserName=${1}&Action=DeleteAccessKey&AccessKeyId=${key}"
+			-H 'Accept: application/xml' \
+			-H "X-SDS-AUTH-TOKEN: $token"
+	done
+	# Create access key
 	curl -ks -X \
 		POST \
 		"${ecs_endpoint}:${ecs_mgmt_port}/iam?UserName=${1}&Action=CreateAccessKey" \
 		-H "X-SDS-AUTH-TOKEN: ${ecs_token}" \
 		> ~/creds_${1}.txt
 	sed -E -i "s/.*AccessKeyId>(.*)<\/Access.*SecretAccessKey>(.*)<\/Secret.*/\1 \2/" ~/creds_${1}.txt
+}
+
+function get_ecs_predefined_from_vault() {
+	vault read objectscale/vault/predefined/${1} | tee ~/creds_${1}.txt
 }
 
 function create_ecs_users_and_policies() {
@@ -179,7 +197,7 @@ function create_ecs_users_and_policies() {
 
 	# Create Access Key for plugin-admin
 	echo "Creating plugin-admin access keys and secret key"
-	reset_access_key_for_user "iam-admin1"
+	reset_ecs_access_key "iam-admin1"
 	echo "Plugin-admin keys created"
 
 	# Create Roles, RoleDocument is URL encoded
@@ -431,6 +449,11 @@ case $1 in
 	verify_vault_plugins)
 		verify_vault_plugins
 		;;
+	reset_ecs_access_key)
+		reset_ecs_access_key $2
+		;;
+	get_ecs_predefined_from_vault)
+		get_ecs_predefined_from_vault $2
 	*)
 		echo "$USAGE"
 		;;
