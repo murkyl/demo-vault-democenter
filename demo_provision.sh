@@ -450,10 +450,19 @@ case $1 in
 		verify_vault_plugins
 		;;
 	reset_ecs_access_key)
-		reset_ecs_access_key $2
+		if [[ $2 = "" ]]; then
+			echo "Please provide a user name as an option"
+		else
+			reset_ecs_access_key $2
+		fi
 		;;
 	get_ecs_predefined_from_vault)
-		get_ecs_predefined_from_vault $2
+		if [[ $2 = "" ]]; then
+			echo "Please provide a user name as an option"
+		else
+			get_ecs_predefined_from_vault $2
+		fi
+		;;
 	*)
 		echo "$USAGE"
 		;;
