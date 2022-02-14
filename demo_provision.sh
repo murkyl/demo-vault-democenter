@@ -276,20 +276,20 @@ function logout_ecs() {
 }
 
 function reset_ecs_access_key() {
-	tag="accesskey"
+	tag="AccessKeyId"
 	# Get list of current user's access key
-	key_list=`curl -ks -X\
+	response=`curl -ks -X\
 		POST "${ecs_endpoint}:${ecs_mgmt_port}/iam?Action=ListAccessKeys&UserName=${1}" \
 		-H "Accept: application/xml" \
-		-H "X-SDS-AUTH-TOKEN: ${ecs_token}"` | \
-		sed -E -e "s~(.*)</${tag}>.*~\1~" -e "s~</${tag}>.*<${tag}>~ ~" -e "s~.*?<${tag}>~~"
+		-H "X-SDS-AUTH-TOKEN: ${ecs_token}"`
+	key_list=`echo "${response}" | sed -E -e "s~(.*)</${tag}>.*~\1~" -e "s~</${tag}>.*<${tag}>~ ~" -e "s~.*?<${tag}>~~"`
 	# Delete all access keys
 	for key in ${key_list}; do
 		curl -ks -X \
 			POST \
-			"${ecs_endpoint}:${ecs_mgmt_port}/iam?UserName=${1}&Action=DeleteAccessKey&AccessKeyId=${key}"
+			"${ecs_endpoint}:${ecs_mgmt_port}/iam?UserName=${1}&Action=DeleteAccessKey&AccessKeyId=${key}" \
 			-H 'Accept: application/xml' \
-			-H "X-SDS-AUTH-TOKEN: $token"
+			-H "X-SDS-AUTH-TOKEN: ${ecs_token}"
 	done
 	# Create access key
 	curl -ks -X \
@@ -489,7 +489,9 @@ case $1 in
 		if [[ $2 = "" ]]; then
 			echo "Please provide a user name as an option"
 		else
+			login_ecs
 			reset_ecs_access_key $2
+			logout_ecs
 		fi
 		;;
 	get_ecs_predefined_from_vault)
