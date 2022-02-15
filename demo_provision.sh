@@ -13,6 +13,8 @@ install
 	- Install packages and plugins
 init_ecs
 	- Setup ECS with users and policies. Clears existing keys
+init_pscale
+	- Setup PowerScale with SSH key based login, users, and groups
 configure_vault
 	- Configure Vault configuration file
 start_vault
@@ -113,7 +115,7 @@ function reset_aws_config() {
 function install_packages() {
 	# Install extra packages
 	echo "Installing additional required packages"
-	yum install -y yum-utils awscli perl-Digest-HMAC
+	yum install -y yum-utils awscli perl-Digest-HMAC sshpass
 	yum-config-manager --add-repo https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo
 	yum install -y ${vault_ver}
 	mkdir /opt/vault/plugins
@@ -267,6 +269,15 @@ function print_expire_date() {
 		echo -n `date --date="@${future}"`
 	fi
 	echo ", time is currently: `date`"
+}
+
+function generate_ssh_key_pair() {
+	rm -f ~/.ssh/id_rsa
+	ssh-keyben -b 2048 -t rsa -q -N "" -f ~/.ssh/id_rsa
+	echo ${pscale_password} >> ~/.ssh/password.txt
+	chmod 600 ~/.ssh/password.txt
+	sshpass -f ~/.ssh/password.txt ssh-copy-id -o StrictHostKeyChecking=no root@${pscale_endpoint}
+	rm -f ~/.ssh/password.txt
 }
 
 #======================================================================
@@ -534,7 +545,6 @@ function config_ecs_demo() {
 # PowerScale related functions
 #
 #======================================================================
-
 function register_pscale_plugin() {
 	# Register plugin
 	echo "Registering PowerScale plugin"
@@ -596,6 +606,9 @@ case $1 in
 		login_ecs
 		create_ecs_users_and_policies
 		logout_ecs
+		;;
+	init_pscale)
+		generate_ssh_key_pair
 		;;
 	configure_vault)
 		configure_vault
