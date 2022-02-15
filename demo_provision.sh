@@ -624,12 +624,12 @@ case $1 in
 		logout_ecs
 
 		register_ecs_plugin
-		register_pscale_plugin
+		#register_pscale_plugin
 
 		config_ecs_plugin
-		config_pscale_plugin
+		#config_pscale_plugin
 		config_ecs_demo
-		config_pscale_demo
+		#config_pscale_demo
 		install_env
 		;;
 	install)
