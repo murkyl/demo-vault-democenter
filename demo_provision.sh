@@ -70,8 +70,8 @@ pscale_vault_endpoint="${PSCALE_VAULT_ENDPOINT:=pscale}"
 export VAULT_ADDR="${VAULT_ADDR:=http://127.0.0.1:8200}"
 
 # Define ECS variables
-ecs_username="${ECS_USERNAME}:=root}"
-ecs_password="${ECS_PASSWORD}:=Password123!}"
+ecs_username="${ECS_USERNAME:=root}"
+ecs_password="${ECS_PASSWORD:=Password123!}"
 ecs_role_name="${ECS_ROLE_NAME:=admins}"
 ecs_role_policy_file="${ECS_ROLE_POLICY_FILE:=role_iam-user1.json}"
 ecs_assume_policy_file="${ECS_ASSUME_POLICY_FILE:=assume_role_policy.json}"
