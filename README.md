@@ -18,7 +18,13 @@ Run the following commands to download and setup the demo:
 
 ```bash
 wget -N https://raw.githubusercontent.com/murkyl/demo-vault-democenter/main/demo_provision.sh
+```
+
+```bash
 chmod a+x demo_provision.sh
+```
+
+```bash
 ./demo_provision.sh all
 ```
 
