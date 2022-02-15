@@ -90,7 +90,7 @@ iam_users=("plugin-admin" "iam-admin1" "iam-user1")
 
 # Defining IAM Policies
 # There must be a 1 to 1 match between the iam_users and iam_policies arrays
-iam_policies=("urn:ecs:iam:::policy/IAMFullAccess" "urn:ecs:iam:::policy/ECSS3FullAccess" "urn:ecs:iam:::policy/AllowAssumeRole")
+iam_policies=("urn:ecs:iam:::policy/IAMFullAccess" "urn:ecs:iam:::policy/ECSS3FullAccess" "urn:ecs:iam::ns1:policy/AllowAssumeRole")
 
 #======================================================================
 #
@@ -193,16 +193,21 @@ EOF
 	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 }
 
-# Function expects 4 arguments
+# Function expects 4 or 5 arguments
 # Argument 1: file name with path to modify
 # Argument 2: Header of the block to modify, e.g. "ecs" or "pscale"
 # Argument 3: Access key
 # Argument 4: Secret
+# Argument 5: Security token (optional)
 function write_awscli_file() {
 	read -r -d '' creds << EOF
 aws_access_key_id = ${3}
 aws_secret_access_key = ${4}
 EOF
+	if [[ ${5} != "" ]]; then
+		printf -v creds '%s\n%s\n' "${creds}" "${5}"
+	fi
+
 	edit_block=0
 	found=0
 	while IFS= read -r line; do
@@ -428,7 +433,8 @@ function get_ecs_sts() {
 	# Update AWS CLI credentials
 	key=`grep access_key ~/creds_${1}.txt | awk '{print $2}'`
 	secret=`grep secret_key ~/creds_${1}.txt | awk '{print $2}'`
-	write_awscli_file ~/.aws/credentials ${1} ${key} ${secret}
+	token=`grep security_token ~/creds_${1}.txt | awk '{print $2}'`
+	write_awscli_file ~/.aws/credentials ${1} ${key} ${secret} ${token}
 	write_s3curl_file ~/.s3curl $key $secret
 	print_expire_date ${vault_default_sts_expire}
 }
