@@ -42,7 +42,7 @@ The alias used for this demo populated by bash_profile are:
 
 ------
 
-### **Demo 1**
+### **Demo 1** - Predefined User Secret
 
 Demo one demonstrates how an existing IAM user in ECS can have an S3 secret generated on the fly by Hashicorp Vault and used with an S3 compatible program. The user in this demo has a secret time to live (TTL) of 5 min. After 5 min the Vault Server will delete the ECS secret attached to iam-admin1.
 
@@ -115,19 +115,19 @@ This concludes the demonstration of an existing ECS IAM user having its secrets 
 
 ------
 
-### **Demo 2**
+### **Demo 2** - Dynamic User Secret
 
 TBA!!!!
 
 ------
 
-### Demo 3
+### Demo 3 - IAM Assume Role
 
 Demo three demonstrates how **iam-user1** an S3 read-only user can escalate privilege's to perform administration functions on ECS inside the NS1 namespace. This demonstration will use ECS's IAM assumeRole API and the accessKey and secretKey will be issued by the IAM STS service.
 
 The time to live (TTLS) on the role escalation will be valid for 1 hour. The Role in ECS's IAM which will be assumed is the admin role which has the **ECSS3FullAccess** policy applied.
 
-These tasks will use a combination of AWS CLI and **s3curl**, both programs will have credential information fed from Vault Server.
+These tasks will use the AWS CLI, the credentials will be fed from the Vault Server.
 
 
 
