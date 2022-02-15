@@ -28,7 +28,11 @@ After all packages are installed update your environment
 source ~/.bash_profile
 ```
 
+The alias used for this demo populated by bash_profile are:
 
+- [ ] ***ecsiamdynamic -*** uses the dynamically created credentials from Vault Server into the AWS Credentials file. AWS credentials profile is **dynamic**.
+- [ ] ***ecsiamadmin1 -*** uses the predefined ECS IAM user iam-admin1. The secret is updated from Vault Server into the AWS Credentials file. AWS credentials profile is **iam-admin1**.
+- [ ] ***ecsiamuser1 -*** uses the predefined ECS IAM user iam-user1. The secret is updated from Vault Server into the AWS Credentials file. AWS credentials profile is **iam-user1**.
 
 ### **Demo 1**
 
@@ -42,7 +46,7 @@ This demo environment uses Linux aliases to simply AWS CLI commands. If the AWS 
 2. To start using the AWS CLI we need to generate an IAM secret for **iam-admin1** user. To do this issue the below command within the **ldap-kdc** virtual machine in **RoyalTS**.
 
 ```bash
-$ ./demo_provision.sh get_ecs_predefined iam-admin1
+./demo_provision.sh get_ecs_predefined iam-admin1
 ```
 
 <!--Once the above command is issued the secret for iam-admin1 will have a time to live (TTL) of 5 min. If your AWS CLI commands fail your secret may have expired. If so repeat the above command to receive another secret valid for 5 minuets.-->
@@ -50,7 +54,7 @@ $ ./demo_provision.sh get_ecs_predefined iam-admin1
 3. Demonstrate there is no buckets inside the ECS by listing all buckets within the NS1 namespace. The command should return nothing.
 
 ```bash
-$ ecsiamadmin1 s3 ls
+ecsiamadmin1 s3 ls
 ```
 
 > If the iam-admin1 users secret has expired, the below error message will appear.
@@ -62,21 +66,21 @@ $ ecsiamadmin1 s3 ls
 4. Create a bucket in the NS1 namespace with iam-admin1 user. The bucket will be called **admin1**.
 
 ```bash
-$ ecsiamadmin1 s3 mb s3://admin1
+ecsiamadmin1 s3 mb s3://admin1
 make_bucket admin1
 ```
 
 5. Perform a bucket list command to show the new bucket has been created.
 
 ```bash
-$ ecsiamadmin1 s3 ls
+ecsiamadmin1 s3 ls
 2022-02-14 16:52:56 admin1
 ```
 
 6. Upload data as iam-admin1 user into the new **admin1** bucket.
 
 ```bash
-$ ecsiamadmin1 s3 cp s3curl.pl s3://admin1
+ecsiamadmin1 s3 cp s3curl.pl s3://admin1
 upload: ./s3curl.pl to s3://admin1/s3curl.pl
 ```
 
@@ -89,7 +93,7 @@ upload: ./s3curl.pl to s3://admin1/s3curl.pl
 7. Finally list the contents of the admin1 bucket to verify the file has uploaded.
 
 ```bash
-$ ecsiamadmin1 s3 ls
+ecsiamadmin1 s3 ls
 2022-02-14 16:52:56	12161	s3curl.pl
 ```
 
@@ -113,7 +117,7 @@ These tasks will use a combination of AWS CLI and **s3curl**, both programs will
 2. To start using the AWS CLI we need to generate an IAM secret for **iam-user1** user. To do this issue the below command within the **ldap-kdc** virtual machine in **RoyalTS**.
 
 ```bash
-$ ./demo_provision.sh get_ecs_predefined iam-user1
+./demo_provision.sh get_ecs_predefined iam-user1
 ```
 
 <!--Once the above command is issued the secret for iam-admin1 will have a time to live (TTL) of 5 min. If your AWS CLI commands fail your secret may have expired. If so repeat the above command to receive another secret valid for 5 minuets.-->
@@ -121,7 +125,7 @@ $ ./demo_provision.sh get_ecs_predefined iam-user1
 3. Demonstrate that iam-user1 with its read-only permissions cannot list buckets inside the NS1 namespace. The below command will list a bucket if buckets exist in the namespace.
 
 ```bash
-$ ecsiamuser1 s3 ls
+ecsiamuser1 s3 ls
 ```
 
 > If the iam-admin1 users secret has expired, the below error message will appear.
@@ -133,25 +137,38 @@ $ ecsiamuser1 s3 ls
 4. Lets try and create a bucket inside the NS1 namespace. This command should fail.
 
 ```bash
-$ ecsiamuser1 s3 mb s3://user1bucket
-make_bucket failed: s3://userbucket An error occured (AccessDenied) when calling the CreateBucket operation: Access Denied
+ecsiamuser1 s3 mb s3://role1
+make_bucket failed: s3://role1 An error occured (AccessDenied) when calling the CreateBucket operation: Access Denied
 ```
 
+<!--**iam-user1** needs to escalate its privilege's temporarily to to create and upload object to buckets. To escalate privilege's in S3 iam-user1 needs to assume the admin role which has the **ECSS3FullAccess** policy attached. Next **iam-user1** needs to alter its accessKey, secretKey and provide a securityToken to re-authenticate to ECS with the elevated privilege's.-->
 
-
-4. iam-user1 needs to escalate its privilege's temporarily to to list, create, upload object to buckets. Perform the below command to instruct ECS to create credentials for iam-user1 to temporarily have admin access via the ECS Role **admin**.
+4. Perform the below command to instruct ECS to create credentials for **iam-user1** to temporarily have admin access via the ECS Role **admin** using the Secure Token Service (STS).
 
 ```bash
-$ ./demo_provision.sh get_ecs_sts iam-user1 urn:ecs:iam::ns1:role/admins
+./demo_provision.sh get_ecs_sts iam-user1 urn:ecs:iam::ns1:role/admins
 ```
 
-5. rarhaa
+5. Try and use the same command and create a bucket. This time the command will complete successfully.
 
 ```bash
-$ ecssts s3 mb s3://role1
+ecsiamuser1 s3 mb s3://role1
+make_bucket: role1
 ```
 
+6. Lets upload an object into the newly create role1 bucket.
 
+```bash
+ecsiamuser1 s3 cp s3curl.pl s3://role1
+upload: ./s3curl.pl to s3://role1/s3curl.pl
+```
+
+6. Lets list the contents of the role1 bucket. The previously uploaded object should be visable.
+
+```bash
+ecsiamuser1 s3 ls s3://role1
+2022-02-15 01:45:08		12161	s3curl.pl
+```
 
 
 
