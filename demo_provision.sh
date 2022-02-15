@@ -157,13 +157,6 @@ function s3curlwrapper() {
   fi
   token=\`grep security_token ~/creds_stsuser.txt | awk '{ print \$2 }'\`
   case \$op in
-    mb)
-      if [ \$token = "" ]; then
-        echo "Missing security token in ~/creds_stsuser.txt"
-      else
-        ~/s3curl.pl --id=ecs --createBucket -- -H "X-Amz-Security-Token: \${token}" "${ecs_data_endpoint}:${ecs_data_port}/\$(strips3prefix \${3})"
-      fi
-      ;;
     cp)
       if [ \$token = "" ]; then
         echo "Missing security token in ~/creds_stsuser.txt"
@@ -171,11 +164,26 @@ function s3curlwrapper() {
         ~/s3curl.pl --id=ecs --put=\${3} -- -H "X-Amz-Security-Token: \${token}" "${ecs_data_endpoint}:${ecs_data_port}/\$(strips3prefix \${4})/\$(strips3prefix \${3})"
       fi
       ;;
+    ls)
+      if [ \$token = "" ]; then
+        echo "Missing security token in ~/creds_stsuser.txt"
+      else
+        ~/s3curl.pl --id=ecs -- -H "X-Amz-Security-Token: \${token}" "${ecs_data_endpoint}:${ecs_data_port}/\$(strips3prefix \${4}))"
+      fi
+      ;;
+    mb)
+      if [ \$token = "" ]; then
+        echo "Missing security token in ~/creds_stsuser.txt"
+      else
+        ~/s3curl.pl --id=ecs --createBucket -- -H "X-Amz-Security-Token: \${token}" "${ecs_data_endpoint}:${ecs_data_port}/\$(strips3prefix \${3})"
+      fi
+      ;;
     *)
       echo "s3curlwrapper pretends to be the aws CLI command"
       echo "Usage:"
-      echo "s3curlwrapper s3 mb s3://<bucketname>"
       echo "s3curlwrapper s3 cp <filename> s3://<bucketname>"
+      echo "s3curlwrapper s3 ls <endpoint,s3://<bucketname>"
+      echo "s3curlwrapper s3 mb s3://<bucketname>"
       ;;
   esac
 }
@@ -205,7 +213,7 @@ aws_access_key_id = ${3}
 aws_secret_access_key = ${4}
 EOF
 	if [[ ${5} != "" ]]; then
-		printf -v creds '%s\naws_sesssion_token = %s\n' "${creds}" "${5}"
+		printf -v creds '%s\naws_session_token = %s' "${creds}" "${5}"
 	fi
 
 	edit_block=0
