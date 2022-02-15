@@ -81,15 +81,6 @@ ecs_assume_policy_file="${ECS_ASSUME_POLICY_FILE:=assume_role_policy.json}"
 ecs_dynamic_role_1="${ECS_DYNAMIC_ROLE_NAME:=readonly_app1}"
 #ecs_token is exported to the environment holding the current authentication token
 
-# Define PowerScale variables
-pscale_username="${PSCALE_USERNAME:=root}"
-pscale_password="${PSCALE_PASSWORD:=Password123!}"
-pscale_vault_user="${PSCALE_VAULT_USER:=vault_mgr}"
-pscale_vault_password="${PSCALE_VAULT_PASSWORD:=isasecret}"
-pscale_vault_home_dir="${PSCALE_VAULT_HOME_DIR:=/ifs/home/vault}"
-pscale_vault_group="${PSCALE_VAULT_GROUP:=vault}"
-pscale_vault_role="${PSCALE_VAULT_ROLE:=VaultMgr}"
-
 # Defining IAM Users
 # The first user MUST be the account that will be used by the plugin
 # The second user is the account that will have their secrets rotated
@@ -100,24 +91,20 @@ iam_users=("plugin-admin" "iam-admin1" "iam-user1")
 # There must be a 1 to 1 match between the iam_users and iam_policies arrays
 iam_policies=("urn:ecs:iam:::policy/IAMFullAccess" "urn:ecs:iam:::policy/ECSS3FullAccess" "urn:ecs:iam::ns1:policy/AllowAssumeRole")
 
+# Define PowerScale variables
+pscale_username="${PSCALE_USERNAME:=root}"
+pscale_password="${PSCALE_PASSWORD:=Password123!}"
+pscale_vault_user="${PSCALE_VAULT_USER:=vault_mgr}"
+pscale_vault_password="${PSCALE_VAULT_PASSWORD:=isasecret}"
+pscale_vault_home_dir="${PSCALE_VAULT_HOME_DIR:=/ifs/home/vault}"
+pscale_vault_group="${PSCALE_VAULT_GROUP:=vault}"
+pscale_vault_role="${PSCALE_VAULT_ROLE:=VaultMgr}"
+
 #======================================================================
 #
 # Package, install, and misc functions
 #
 #======================================================================
-function reset_aws_config() {
-	# Create AWS Cli configuration files
-	mkdir -p ~/.aws
-	chmod 755 ~/.aws
-	echo "[default]" > ~/.aws/config
-	echo "region = \"\"" >> ~/.aws/config
-	echo "[default]" > ~/.aws/credentials
-	echo "aws_access_key_id = \"\"" >> ~/.aws/credentials
-	echo "aws_secret_access_key = \"\"" >> ~/.aws/credentials
-	echo ""
-	chmod 600 ~/.aws/*
-}
-
 function install_packages() {
 	# Install extra packages
 	echo "Installing additional required packages"
@@ -207,6 +194,19 @@ EOF
 	echo "    source ~/.bash_profile"
 	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+}
+
+function reset_aws_config() {
+	# Create AWS Cli configuration files
+	mkdir -p ~/.aws
+	chmod 755 ~/.aws
+	echo "[default]" > ~/.aws/config
+	echo "region = \"\"" >> ~/.aws/config
+	echo "[default]" > ~/.aws/credentials
+	echo "aws_access_key_id = \"\"" >> ~/.aws/credentials
+	echo "aws_secret_access_key = \"\"" >> ~/.aws/credentials
+	echo ""
+	chmod 600 ~/.aws/*
 }
 
 # Function expects 4 or 5 arguments
@@ -553,41 +553,50 @@ function create_ecs_users_and_policies() {
 #======================================================================
 function register_pscale_plugin() {
 	# Register plugin
-	echo "Registering PowerScale plugin"
+	echo "[PSCALE] Registering plugin"
 	VAULT_PSCALE_PLUGIN_VERSION=`ls /opt/vault/plugins/${pscale_plugin_name}-linux-* | sort -R | tail -n 1 | sed 's/.*\///'`
 	VAULT_PSCALE_PLUGIN_SHA256=`sha256sum /opt/vault/plugins/${VAULT_PSCALE_PLUGIN_VERSION} | cut -d " " -f 1`
 	vault plugin register -sha256=${VAULT_PSCALE_PLUGIN_SHA256} -command ${VAULT_PSCALE_PLUGIN_VERSION} secret ${pscale_vault_endpoint}
 	vault secrets enable -path=${pscale_vault_endpoint} ${pscale_vault_endpoint}
-	echo "Plugin registered"
+	echo "[PSCALE] Plugin registered"
 }
 
 function config_pscale_plugin() {
 	# Configure PowerScale plugin
-	echo "Configure PowerScale plugin"
+	echo "[PSCALE] Configure plugin"
 	vault write ${pscale_vault_endpoint}/config/root \
 		user="${pscale_vault_user}" \
 		password="${pscale_vault_password}" \
 		endpoint=${pscale_endpoint}:${pscale_mgmt_port} \
 		homedir="${pscale_vault_home_dir}" \
-		primary_group="${pscale_vault_group}"
+		primary_group="${pscale_vault_group}" \
+		cleanup_period=300 \
+		bypass_cert_check=true
 	vault read ${pscale_vault_endpoint}/config/root
+	echo "[PSCALE] Plugin configured"
 }
 
 function config_pscale_demo() {
-	echo ""
+	vault write ${pscale_vaul_endpoint}/roles/predefined/s3user1 ttl=${vault_default_expire}
 }
 
 function create_pscale_users_and_groups() {
+	echo "[PSCALE] Creating roles and adding privileges"
 	ssh ${pscale_endpoint} isi auth roles create --name=${pscale_vault_role}
 	ssh ${pscale_endpoint} isi auth roles modify VaultMgr --add-priv=ISI_PRIV_S3
 	ssh ${pscale_endpoint} isi auth roles modify VaultMgr --add-priv=ISI_PRIV_LOGIN_PAPI
 	ssh ${pscale_endpoint} isi auth roles modify VaultMgr --add-priv=ISI_PRIV_AUTH
-	ssh ${pscale_endpoint} isi auth users create ${pscale_vault_user} --enabled=True --set-password ${pscale_vault_password}
-	ssh ${pscale_endpoint} isi auth roles modify ${pscale_vault_role} --add-user=${pscale_vault_user}
+	echo "[PSCALE] Creating common group for dynamic mode"
 	ssh ${pscale_endpoint} isi auth groups create vault
 	ssh ${pscale_endpoint} mkdir ${pscale_vault_home_dir}
 	ssh ${pscale_endpoint} chown root:wheel ${pscale_vault_home_dir}
 	ssh ${pscale_endpoint} chmod 755 ${pscale_vault_home_dir}
+	echo "[PSCALE] Creating user to be used by Vault"
+	ssh ${pscale_endpoint} isi auth users create ${pscale_vault_user} --enabled=True --password=${pscale_vault_password}
+	ssh ${pscale_endpoint} isi auth roles modify ${pscale_vault_role} --add-user=${pscale_vault_user}
+	echo "[PSCALE] Create standard user for S3 access"
+	ssh ${pscale_endpoint} isi auth users create s3user1 --enabled=True
+	ssh ${pscale_endpoint} isi s3 buckets create s3user1bucket /ifs/home/s3user1 --owner=s3user1
 }
 
 #======================================================================
