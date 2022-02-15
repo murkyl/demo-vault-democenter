@@ -64,6 +64,7 @@ ecs_plugin_ver="${ECS_PLUGIN_VER:=0.4.3}"
 ecs_plugin_name="${ECS_PLUGIN_NAME:=vault-plugin-secrets-objectscale}"
 ecs_vault_endpoint="${ECS_VAULT_ENDPOINT:=objectscale}"
 pscale_endpoint="${PSCALE_ENDPOINT:=192.168.1.21}"
+pscale_mgmt_port="${PSCALE_MGMT_PORT:=8080}"
 pscale_plugin_ver="${PSCALE_PLUGIN_VER:=0.3.1}"
 pscale_plugin_name="${PSCALE_PLUGIN_NAME:=vault-plugin-secrets-onefs}"
 pscale_vault_endpoint="${PSCALE_VAULT_ENDPOINT:=pscale}"
@@ -83,6 +84,11 @@ ecs_dynamic_role_1="${ECS_DYNAMIC_ROLE_NAME:=readonly_app1}"
 # Define PowerScale variables
 pscale_username="${PSCALE_USERNAME:=root}"
 pscale_password="${PSCALE_PASSWORD:=Password123!}"
+pscale_vault_user="${PSCALE_VAULT_USER:=vault_mgr}"
+pscale_vault_password="${PSCALE_VAULT_PASSWORD:=isasecret}"
+pscale_vault_home_dir="${PSCALE_VAULT_HOME_DIR:=/ifs/home/vault}"
+pscale_vault_group="${PSCALE_VAULT_GROUP:=vault}"
+pscale_vault_role="${PSCALE_VAULT_ROLE:=VaultMgr}"
 
 # Defining IAM Users
 # The first user MUST be the account that will be used by the plugin
@@ -273,7 +279,7 @@ function print_expire_date() {
 
 function generate_ssh_key_pair() {
 	rm -f ~/.ssh/id_rsa
-	ssh-keyben -b 2048 -t rsa -q -N "" -f ~/.ssh/id_rsa
+	ssh-keygen -b 2048 -t rsa -q -N "" -f ~/.ssh/id_rsa
 	echo ${pscale_password} >> ~/.ssh/password.txt
 	chmod 600 ~/.ssh/password.txt
 	sshpass -f ~/.ssh/password.txt ssh-copy-id -o StrictHostKeyChecking=no root@${pscale_endpoint}
@@ -377,6 +383,26 @@ function config_ecs_plugin() {
 		endpoint=${ecs_endpoint}:${ecs_mgmt_port} \
 		bypass_cert_check=true
 	vault read ${ecs_vault_endpoint}/config/root
+}
+
+function config_ecs_demo() {
+	# Configure the demo Vault endpoints
+	echo "Configuring ECS demo user endpoints"
+	unseal_and_login_vault > /dev/null
+	vault write ${ecs_vault_endpoint}/roles/predefined/${iam_users[1]} namespace=ns1
+	vault write ${ecs_vault_endpoint}/roles/predefined/${iam_users[2]} namespace=ns1
+	vault write ${ecs_vault_endpoint}/roles/dynamic/${ecs_dynamic_role_1} namespace=ns1 policy=ECSS3ReadOnlyAccess
+	echo "Demo endpoints configured"
+	echo "Usable endpoints"
+	echo "    # Rotate access key and secret"
+	echo "    ${ecs_vault_endpoint}/creds/predefined/${iam_users[1]}"
+	echo "    # IAM Read only access"
+	echo "    ${ecs_vault_endpoint}/creds/dynamic/${ecs_dynamic_role_1}"
+	echo "    # Assume role: admins"
+	echo "    ${ecs_vault_endpoint}/sts/predefined/${iam_users[2]} role_arn=urn:ecs:iam::ns1:role/${ecs_role_name}"
+	echo ""
+	echo "Example:"
+	echo "  vault read ${ecs_vault_endpoint}/creds/predefined/${iam_users[1]}"
 }
 
 function login_ecs() {
@@ -520,26 +546,6 @@ function create_ecs_users_and_policies() {
 	echo "Role created"
 }
 
-function config_ecs_demo() {
-	# Configure the demo Vault endpoints
-	echo "Configuring ECS demo user endpoints"
-	unseal_and_login_vault > /dev/null
-	vault write ${ecs_vault_endpoint}/roles/predefined/${iam_users[1]} namespace=ns1
-	vault write ${ecs_vault_endpoint}/roles/predefined/${iam_users[2]} namespace=ns1
-	vault write ${ecs_vault_endpoint}/roles/dynamic/${ecs_dynamic_role_1} namespace=ns1 policy=ECSS3ReadOnlyAccess
-	echo "Demo endpoints configured"
-	echo "Usable endpoints"
-	echo "    # Rotate access key and secret"
-	echo "    ${ecs_vault_endpoint}/creds/predefined/${iam_users[1]}"
-	echo "    # IAM Read only access"
-	echo "    ${ecs_vault_endpoint}/creds/dynamic/${ecs_dynamic_role_1}"
-	echo "    # Assume role: admins"
-	echo "    ${ecs_vault_endpoint}/sts/predefined/${iam_users[2]} role_arn=urn:ecs:iam::ns1:role/${ecs_role_name}"
-	echo ""
-	echo "Example:"
-	echo "  vault read ${ecs_vault_endpoint}/creds/predefined/${iam_users[1]}"
-}
-
 #======================================================================
 #
 # PowerScale related functions
@@ -556,11 +562,32 @@ function register_pscale_plugin() {
 }
 
 function config_pscale_plugin() {
-	echo ""
+	# Configure PowerScale plugin
+	echo "Configure PowerScale plugin"
+	vault write ${pscale_vault_endpoint}/config/root \
+		user="${pscale_vault_user}" \
+		password="${pscale_vault_password}" \
+		endpoint=${pscale_endpoint}:${pscale_mgmt_port} \
+		homedir="${pscale_vault_home_dir}" \
+		primary_group="${pscale_vault_group}"
+	vault read ${pscale_vault_endpoint}/config/root
 }
 
 function config_pscale_demo() {
 	echo ""
+}
+
+function create_pscale_users_and_groups() {
+	ssh ${pscale_endpoint} isi auth roles create --name=${pscale_vault_role}
+	ssh ${pscale_endpoint} isi auth roles modify VaultMgr --add-priv=ISI_PRIV_S3
+	ssh ${pscale_endpoint} isi auth roles modify VaultMgr --add-priv=ISI_PRIV_LOGIN_PAPI
+	ssh ${pscale_endpoint} isi auth roles modify VaultMgr --add-priv=ISI_PRIV_AUTH
+	ssh ${pscale_endpoint} isi auth users create ${pscale_vault_user} --enabled=True --set-password ${pscale_vault_password}
+	ssh ${pscale_endpoint} isi auth roles modify ${pscale_vault_role} --add-user=${pscale_vault_user}
+	ssh ${pscale_endpoint} isi auth groups create vault
+	ssh ${pscale_endpoint} mkdir ${pscale_vault_home_dir}
+	ssh ${pscale_endpoint} chown root:wheel ${pscale_vault_home_dir}
+	ssh ${pscale_endpoint} chmod 755 ${pscale_vault_home_dir}
 }
 
 #======================================================================
@@ -609,6 +636,7 @@ case $1 in
 		;;
 	init_pscale)
 		generate_ssh_key_pair
+		create_pscale_users_and_groups
 		;;
 	configure_vault)
 		configure_vault
