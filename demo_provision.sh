@@ -205,7 +205,7 @@ aws_access_key_id = ${3}
 aws_secret_access_key = ${4}
 EOF
 	if [[ ${5} != "" ]]; then
-		printf -v creds '%s\n%s\n' "${creds}" "${5}"
+		printf -v creds '%s\naws_sesssion_token = %s\n' "${creds}" "${5}"
 	fi
 
 	edit_block=0
@@ -495,7 +495,7 @@ function create_ecs_users_and_policies() {
 		>> ~/log_create_role.txt
 	echo -e "\n" >> ~/log_create_role.txt
 	curl -ks \
-		-X POST "${ecs_endpoint}:${ecs_mgmt_port}/iam?PolicyArn=${iam_policies[@]:0:2}&RoleName=${ecs_role_name}&Action=AttachRolePolicy" \
+		-X POST "${ecs_endpoint}:${ecs_mgmt_port}/iam?PolicyArn=${iam_policies[1]}&RoleName=${ecs_role_name}&Action=AttachRolePolicy" \
 		-H "X-SDS-AUTH-TOKEN: ${ecs_token}" \
 		>> ~/log_create_role.txt
 	echo "Role created"
