@@ -52,8 +52,8 @@ EOF
 # Define common variables with defaults. You can override these from the shell by setting the environment variables appropriately
 vault_ver="${VAULT_VER:=vault-1.7.3}"
 vault_cfg_file="${VAULT_CFG_FILE:=/etc/vault.d/vault.hcl}"
-vault_default_expire=300
-vault_default_sts_expire=3600
+vault_default_expire=${VAULT_DEFAULT_EXPIRE:=300}
+vault_default_sts_expire=${VAULT_DEFAULT_STS_EXPIRE:=3600}
 ecs_endpoint="${ECS_ENDPOINT:=https://ecs.demo.local}"
 ecs_mgmt_port="${ECS_MGMT_PORT:=4443}"
 ecs_data_endpoint="${ECS_DATA_ENDPOINT:=http://ecs.demo.local}"
@@ -70,17 +70,17 @@ pscale_vault_endpoint="${PSCALE_VAULT_ENDPOINT:=pscale}"
 export VAULT_ADDR="${VAULT_ADDR:=http://127.0.0.1:8200}"
 
 # Define ECS variables
-ecs_username="root"
-ecs_password="Password123!"
-ecs_role_name="admins"
-ecs_role_policy_file="role_iam-user1.json"
-ecs_assume_policy_file="assume_role_policy.json"
-ecs_dynamic_role_1="readonly_app1"
+ecs_username="${ECS_USERNAME}:=root}"
+ecs_password="${ECS_PASSWORD}:=Password123!}"
+ecs_role_name="${ECS_ROLE_NAME:=admins}"
+ecs_role_policy_file="${ECS_ROLE_POLICY_FILE:=role_iam-user1.json}"
+ecs_assume_policy_file="${ECS_ASSUME_POLICY_FILE:=assume_role_policy.json}"
+ecs_dynamic_role_1="${ECS_DYNAMIC_ROLE_NAME:=readonly_app1}"
 #ecs_token is exported to the environment holding the current authentication token
 
 # Define PowerScale variables
-pscale_username="root"
-pscale_password="Password123!"
+pscale_username="${PSCALE_USERNAME:=root}"
+pscale_password="${PSCALE_PASSWORD:=Password123!}"
 
 # Defining IAM Users
 # The first user MUST be the account that will be used by the plugin
