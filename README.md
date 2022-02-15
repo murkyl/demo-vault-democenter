@@ -3,31 +3,30 @@ Scripts to help demonstrate Hashicorp Vault plugin for ObjectScale and PowerScal
 
 ## Create the demo environment
 
-This demonstration environment is based on the Dell Technologies Demo Centre. This is a registered environment and will require a partner or employee login. If you do not have a login you will not be able to proceed.
+This demonstration environment is based on the Dell Technologies Demo Center. This is a registered environment and will require a partner or employee login. If you do not have a login you will not be able to proceed.
 
 ### Setup
 
-Navigate to: https://democenter.delltechnologies.com/
-
-Login to Demo Center
-
-Search for and deploy: HOL-0543-01 (PowerScale, DataIQ & ECS Field Enablement)
-
-Connect to lab after the lab is setup
-
-Open RoyalTS
-
-Connect to "ldap-kdc"
+1) Navigate to: https://democenter.delltechnologies.com/
+2) Login to Demo Center
+3) Search for and deploy: HOL-0543-01 (PowerScale, DataIQ & ECS Field Enablement)
+4) Connect to lab after the lab is setup
+5) Open RoyalTS
+6) Connect to "ldap-kdc"
 
 Run the following commands to download and setup the demo:
 
-    wget -N https://raw.githubusercontent.com/murkyl/demo-vault-democenter/main/demo_provision.sh
-    chmod a+x demo_provision.sh
-    ./demo_provision.sh all
+```bash
+wget -N https://raw.githubusercontent.com/murkyl/demo-vault-democenter/main/demo_provision.sh
+chmod a+x demo_provision.sh
+./demo_provision.sh all
+```
 
 After all packages are installed update your environment
 
-    source ~/.bash_profile
+```bash
+source ~/.bash_profile
+```
 
 
 
@@ -37,7 +36,7 @@ Demo one demonstrates how an existing IAM user in ECS can have an S3 secret gene
 
 In this demo the program being used is AWS CLI as the client of Vault Server. In a real world application the application could be a webapp, backup software, database, etc.
 
-This demo environment use Linux aliases to simply AWS CLI commands. If the AWS CLI commands to not look correct this is the reason why.
+This demo environment uses Linux aliases to simply AWS CLI commands. If the AWS CLI commands do not look correct this is the reason why.
 
 1. The installation script **demo_provision.sh** has already created an IAM user **iam-admin1** with an IAM Policy granting full access to the ECS S3 API (ECSS3FullAccess). 
 2. To start using the AWS CLI we need to generate an IAM secret for **iam-admin1** user. To do this issue the below command within the **ldap-kdc** virtual machine in **RoyalTS**.
