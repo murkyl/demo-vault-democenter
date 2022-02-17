@@ -704,7 +704,8 @@ case $1 in
 		;;
 	get_ecs_dynamic)
 		if [[ $2 = "" ]]; then
-			echo "Please provide a user name as an option"
+			echo "Please provide a dynamic role name as an option"
+			echo "e.g. ${ecs_dynamic_role_1}"
 		else
 			get_ecs_dynamic $2
 		fi
