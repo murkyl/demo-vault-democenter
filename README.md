@@ -211,26 +211,26 @@ ecsiamuser1 s3 mb s3://role1
 ./demo_provision.sh get_ecs_sts iam-user1 urn:ecs:iam::ns1:role/admins
 ```
 
-6. Try and use the same command and create a bucket. This time the command will complete successfully.
+6. We use the **ecssts** alias which makes use of the security token returned in a role assumption. Try to create a bucket again and this time the command will complete successfully.
 
 ```bash
-ecsiamuser1 s3 mb s3://role1
+ecssts s3 mb s3://role1
 ```
 
 ``make_bucket: role1``
 
-7. Lets upload an object into the newly create role1 bucket.
+7. Let's upload an object into the newly create role1 bucket.
 
 ```bash
-ecsiamuser1 s3 cp s3curl.pl s3://role1
+ecssts s3 cp s3curl.pl s3://role1
 ```
 
 ``		upload: ./s3curl.pl to s3://role1/s3curl.pl``
 
-8. Lets list the contents of the role1 bucket. The previously uploaded object should be visable.
+8. Let's list the contents of the role1 bucket. The previously uploaded object should be visable.
 
 ```bash
-ecsiamuser1 s3 ls s3://role1
+ecssts s3 ls s3://role1
 ```
 
 ``2022-02-15 01:45:08		12161	s3curl.pl``
