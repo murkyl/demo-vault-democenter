@@ -148,7 +148,7 @@ ecsdynamic s3 mb s3://dynamic1
 
 **dynamic_user** cannot perform any other functions other than list buckets and object. This is because the dynamic user has been attached to an IAM Policy which allows only read-only access. The Vault administrator has already created a Vault Role inside Vault. It creates a relationship between the ECS IAM Policy and when anyone requests the dynamic user there is no ability to privilege escalate.
 
-5. Lets try and PUT an object into a bucket. This command will fail as well.
+5. Let's try and PUT an object into a bucket. This command will fail as well.
 
 ```
 ecsdynamic s3 cp s3curl.pl s3://admin1
@@ -195,7 +195,7 @@ ecsiamuser1 s3 ls
 >
 >  Issue step 2's command to re-issue iam-admin1's secret.
 
-4. Lets try and create a bucket inside the NS1 namespace. This command should fail.
+4. Let's try and create a bucket inside the NS1 namespace. This command should fail.
 
 ```bash
 ecsiamuser1 s3 mb s3://role1
