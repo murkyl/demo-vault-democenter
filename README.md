@@ -1,4 +1,4 @@
-# demo-vault-democenter
+# ECS\ObjectScale HashiCorp Vault Plugin
 Scripts to help demonstrate Hashicorp Vault plugin for ObjectScale and PowerScale in Dell Demo Center
 
 ## Create the demo environment
@@ -106,7 +106,7 @@ ecsiamadmin1 s3 cp s3curl.pl s3://admin1
 7. Finally list the contents of the admin1 bucket to verify the file has uploaded.
 
 ```bash
-ecsiamadmin1 s3 ls
+ecsiamadmin1 s3 ls s3://admin1
 ```
 
 ``2022-02-14 16:52:56	12161	s3curl.pl``
@@ -117,7 +117,48 @@ This concludes the demonstration of an existing ECS IAM user having its secrets 
 
 ### **Demo 2** - Dynamic User Secret
 
-TBA!!!!
+A real world scenario for demo two is a webapp which only needs to access an ECS bucket to read a file and present a response to a client. This webapp only needs read privilege's using the concept of least privilege. When there is no clients connected to the webapp there is no need for a long living credentials coded into the server. This also increases the security posture of the webapp and protects the ECS bucket. If the webapp was compromised by malicious attackers . The Vault administrators could revoke the dynamic access credentials or the credentials may have expired preventing the attackers to progress their attack.
+
+1. The installation script **demo_provision.sh** has not created any users, this demo will show the power of HashiCorp Vault in creating in the moment time limited users with set permissions. Users created dynamically will have the **ECSS3ReadOnlyAcces**s IAM Policy applied.
+2. To start using the AWS CLI we need to generate an IAM user with an accessKey and SecretKey. To do this issue the below command within the **ldap-kdc** virtual machine in **RoyalTS**.
+
+```bash
+./demo_provision.sh get_ecs_dynamic readonly_app1
+```
+
+Once the above command is issued the iam user, accessKey and secretKey will be created with a time to live (TTL) of 5 min. If your AWS CLI commands fail your secret may have expired. If so repeat the above command to receive another secret valid for 5 minuets.
+
+
+
+3. Demonstrate that the dynamic user can listing all buckets within the NS1 namespace. The command should return nothing.
+
+```
+ecsdynamic1 s3 ls
+```
+
+``2022-02-14 16:52:56 admin1``
+
+4. Lets try and create a bucket inside the NS1 namespace. This command should fail.
+
+```bash
+ecsdynamic s3 mb s3://dynamic1
+```
+
+``make_bucket failed: s3://dynamic1 An error occured (AccessDenied) when calling the CreateBucket operation: Access Denied``
+
+**dynamic_user** cannot perform any other functions other than list buckets and object. This is because the dynamic user has been attached to an IAM Policy which allows only read-only. The Vault administrator has already created a Vault Role inside Vault. It creates a relationship between the ECS IAM Policy and when anyone requests teh dynamic user there is no ability to privilage escalate.
+
+5. Lets try and PUT an object into a bucket. This command will fail as well.
+
+```
+ecsdynamic s3 cp s3curl.pl s3://admin1
+```
+
+For this dynamic user to perform any write or administrative function on the ECS the user will need to escalate their permissions via the IAM role assumption.
+
+Proceed to the next demo to see how Vault Server and ECS can streamline Role assumptions.
+
+
 
 ------
 
