@@ -65,7 +65,7 @@ ecs_plugin_name="${ECS_PLUGIN_NAME:=vault-plugin-secrets-objectscale}"
 ecs_vault_endpoint="${ECS_VAULT_ENDPOINT:=objectscale}"
 pscale_endpoint="${PSCALE_ENDPOINT:=192.168.1.21}"
 pscale_mgmt_port="${PSCALE_MGMT_PORT:=8080}"
-pscale_plugin_ver="${PSCALE_PLUGIN_VER:=0.3.1}"
+pscale_plugin_ver="${PSCALE_PLUGIN_VER:=0.3.2}"
 pscale_plugin_name="${PSCALE_PLUGIN_NAME:=vault-plugin-secrets-onefs}"
 pscale_vault_endpoint="${PSCALE_VAULT_ENDPOINT:=pscale}"
 # VAULT_ADDR needs to be in the shell's environment and this line will be added to the user's ~/.bash_profile
