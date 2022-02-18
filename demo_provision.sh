@@ -567,7 +567,7 @@ function config_pscale_plugin() {
 	vault write ${pscale_vault_endpoint}/config/root \
 		user="${pscale_vault_user}" \
 		password="${pscale_vault_password}" \
-		endpoint=${pscale_endpoint}:${pscale_mgmt_port} \
+		endpoint=https://${pscale_endpoint}:${pscale_mgmt_port} \
 		homedir="${pscale_vault_home_dir}" \
 		primary_group="${pscale_vault_group}" \
 		cleanup_period=300 \
