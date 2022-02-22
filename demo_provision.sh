@@ -65,6 +65,8 @@ ecs_plugin_name="${ECS_PLUGIN_NAME:=vault-plugin-secrets-objectscale}"
 ecs_vault_endpoint="${ECS_VAULT_ENDPOINT:=objectscale}"
 pscale_endpoint="${PSCALE_ENDPOINT:=192.168.1.21}"
 pscale_mgmt_port="${PSCALE_MGMT_PORT:=8080}"
+pscale_data_endpoint="${PSCALE_DATA_ENDPOINT:=https://192.168.1.21}"
+pscale_data_port="${PSCALE_DATA_PORT:=9021}"
 pscale_plugin_ver="${PSCALE_PLUGIN_VER:=0.3.3}"
 pscale_plugin_name="${PSCALE_PLUGIN_NAME:=vault-plugin-secrets-onefs}"
 pscale_vault_endpoint="${PSCALE_VAULT_ENDPOINT:=pscale}"
@@ -99,6 +101,7 @@ pscale_vault_password="${PSCALE_VAULT_PASSWORD:=isasecret}"
 pscale_vault_home_dir="${PSCALE_VAULT_HOME_DIR:=/ifs/home/vault}"
 pscale_vault_group="${PSCALE_VAULT_GROUP:=vault}"
 pscale_vault_role="${PSCALE_VAULT_ROLE:=VaultMgr}"
+pscale_dynamic_role="${PSCALE_DYNAMIC_ROLE:=dynuser}"
 
 #======================================================================
 #
@@ -134,6 +137,8 @@ alias ecsiamuser1='aws --profile=iam-user1 --endpoint-url=${ecs_data_endpoint}:$
 alias ecsiamadmin1='aws --profile=iam-admin1 --endpoint-url=${ecs_data_endpoint}:${ecs_data_port}'
 alias ecsdynamic='aws --profile=dynamic --endpoint-url=${ecs_data_endpoint}:${ecs_data_port}'
 alias ecssts='s3curlwrapper'
+alias psuser1='aws --profile=s3user1 --endpoint-url=${pscale_data_endpoint}:${pscale}'
+alias psdynamic='aws --profile=psdynamic --endpoint-url=${pscale_data_endpoint}:${pscale}'
 
 function strips3prefix() {
   if [[ \$1 =~ s3://.* ]]; then
@@ -578,6 +583,7 @@ function config_pscale_plugin() {
 
 function config_pscale_demo() {
 	vault write ${pscale_vault_endpoint}/roles/predefined/s3user1 ttl=${vault_default_expire}
+	vault write ${pscale_vault_endpoint}/roles/dynamic/s3dynamic ttl=${vault_default_expire} group="Backup Operators" bucket="s3-dynamic" access-zone="System"
 }
 
 function create_pscale_users_and_groups() {
@@ -597,6 +603,27 @@ function create_pscale_users_and_groups() {
 	echo "[PSCALE] Create standard user for S3 access"
 	ssh ${pscale_endpoint} isi auth users create s3user1 --enabled=True
 	ssh ${pscale_endpoint} isi s3 buckets create s3user1bucket /ifs/home/s3user1 --owner=s3user1
+	echo "[PSCALE] Create dynamic user bucket"
+	ssh ${pscale_endpoint} isi s3 buckets create --create-path --name="s3-dynamic" --path=/ifs/s3-dynamic --owner=root
+	ssh ${pscale_endpoint} isi s3 buckets modify s3-dynamic --add-ace="name=Backup Operators,type=group,perm=full_control"
+}
+
+function get_pscale_predefined() {
+	vault read ${pscale_vault_endpoint}/creds/predefined/${1} | tee ~/creds_${1}.txt
+	# Update AWS CLI credentials
+	key=`grep access_key ~/creds_${1}.txt | awk '{print $2}'`
+	secret=`grep secret_key ~/creds_${1}.txt | awk '{print $2}'`
+	write_awscli_file ~/.aws/credentials ${1} ${key} ${secret}
+	print_expire_date ${vault_default_expire}
+}
+
+function get_pscale_dynamic() {
+	vault read ${pscale_vault_endpoint}/creds/dynamic/${1} | tee ~/creds_pscale_dynamic.txt
+	# Update AWS CLI credentials
+	key=`grep access_key ~/creds_pscale_dynamic.txt | awk '{print $2}'`
+	secret=`grep secret_key ~/creds_pscale_dynamic.txt | awk '{print $2}'`
+	write_awscli_file ~/.aws/credentials psdynamic ${key} ${secret}
+	print_expire_date ${vault_default_expire}
 }
 
 #======================================================================
@@ -718,6 +745,22 @@ case $1 in
 			echo "e.g. iam-user1 urn:ecs:iam::ns1:role/admins"
 		else
 			get_ecs_sts $2 $3
+		fi
+		;;
+	get_pscale_predefined)
+		if [[ $2 = "" ]]; then
+			echo "Please provide a user name as an option"
+			echo "e.g. s3user1"
+		else
+			get_pscale_predefined $2
+		fi
+		;;
+	get_pscale_dynamic)
+		if [[ $2 = "" ]]; then
+			echo "Please provide a dynamic role name as an option"
+			echo "e.g. ${pscale_dynamic_role}"
+		else
+			get_pscale_dynamic $2
 		fi
 		;;
 	*)
