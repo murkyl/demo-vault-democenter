@@ -65,7 +65,7 @@ ecs_plugin_name="${ECS_PLUGIN_NAME:=vault-plugin-secrets-objectscale}"
 ecs_vault_endpoint="${ECS_VAULT_ENDPOINT:=objectscale}"
 pscale_endpoint="${PSCALE_ENDPOINT:=192.168.1.21}"
 pscale_mgmt_port="${PSCALE_MGMT_PORT:=8080}"
-pscale_plugin_ver="${PSCALE_PLUGIN_VER:=0.3.2}"
+pscale_plugin_ver="${PSCALE_PLUGIN_VER:=0.3.3}"
 pscale_plugin_name="${PSCALE_PLUGIN_NAME:=vault-plugin-secrets-onefs}"
 pscale_vault_endpoint="${PSCALE_VAULT_ENDPOINT:=pscale}"
 # VAULT_ADDR needs to be in the shell's environment and this line will be added to the user's ~/.bash_profile
@@ -577,7 +577,7 @@ function config_pscale_plugin() {
 }
 
 function config_pscale_demo() {
-	vault write ${pscale_vaul_endpoint}/roles/predefined/s3user1 ttl=${vault_default_expire}
+	vault write ${pscale_vault_endpoint}/roles/predefined/s3user1 ttl=${vault_default_expire}
 }
 
 function create_pscale_users_and_groups() {
@@ -622,14 +622,16 @@ case $1 in
 		login_ecs
 		create_ecs_users_and_policies
 		logout_ecs
-
 		register_ecs_plugin
-		#register_pscale_plugin
-
 		config_ecs_plugin
-		#config_pscale_plugin
 		config_ecs_demo
+
+		generate_ssh_key_pair
+		create_pscale_users_and_groups
+		register_pscale_plugin
+		config_pscale_plugin
 		#config_pscale_demo
+		
 		install_env
 		;;
 	install)
