@@ -49,6 +49,12 @@ get_ecs_dynamic <username>
 	  Use alias: ecsdynamic
 get_ecs_sts <username>
 	- Get ECS STS access key, save to ~/creds_<username>.txt, and add to the AWS CLI config
+get_pscale_predefined <username>
+	- Get PowerScale predefined access key, save to ~/creds_<username>.txt, and add to the AWS CLI config
+	  Use alias: psuser1
+get_pscale_dynamic <username>
+	- Get PowerScle dynamic access key, save to ~/creds_ps_dynamic.txt, and add to the AWS CLI config
+	  Use alias: psdynamic
 EOF
 
 # Define common variables with defaults. You can override these from the shell by setting the environment variables appropriately
@@ -137,8 +143,8 @@ alias ecsiamuser1='aws --profile=iam-user1 --endpoint-url=${ecs_data_endpoint}:$
 alias ecsiamadmin1='aws --profile=iam-admin1 --endpoint-url=${ecs_data_endpoint}:${ecs_data_port}'
 alias ecsdynamic='aws --profile=dynamic --endpoint-url=${ecs_data_endpoint}:${ecs_data_port}'
 alias ecssts='s3curlwrapper'
-alias psuser1='aws --profile=s3user1 --endpoint-url=${pscale_data_endpoint}:${pscale}'
-alias psdynamic='aws --profile=psdynamic --endpoint-url=${pscale_data_endpoint}:${pscale}'
+alias psuser1='aws --profile=s3user1 --endpoint-url=${pscale_data_endpoint}:${pscale_data_port}'
+alias psdynamic='aws --profile=psdynamic --endpoint-url=${pscale_data_endpoint}:${pscale_data_port}'
 
 function strips3prefix() {
   if [[ \$1 =~ s3://.* ]]; then
@@ -192,7 +198,7 @@ EOF
 	fi
 	echo "VAULT_ADDR environment variable written to ~/.bash_profile"
 	echo "Aliases wrapping the AWS cli command written to ~/.bash_profile"
-	echo "    Aliases: ecsiamuser1, ecsiamadmin1, ecsdynamic, ecssts"
+	echo "    Aliases: ecsiamuser1, ecsiamadmin1, ecsdynamic, ecssts, psuser1, psdynamic"
 	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 	echo "You MUST manually source this file to update your environment"
@@ -584,9 +590,20 @@ function config_pscale_plugin() {
 function config_pscale_demo() {
 	vault write ${pscale_vault_endpoint}/roles/predefined/s3user1 ttl=${vault_default_expire}
 	vault write ${pscale_vault_endpoint}/roles/dynamic/s3dynamic ttl=${vault_default_expire} group="Backup Operators" bucket="s3-dynamic" access-zone="System"
+	echo "Demo endpoints configured"
+	echo "Usable endpoints"
+	echo "    # Rotate access key and secret"
+	echo "    ${pscale_vault_endpoint}/creds/predefined/s3user1"
+	echo "    # Dynamically created S3 user"
+	echo "    ${pscale_vault_endpoint}/creds/dynamic/s3dynamic"
+	echo ""
+	echo "Example:"
+	echo "  vault read ${pscale_vault_endpoint}/creds/predefined/s3user1"
 }
 
 function create_pscale_users_and_groups() {
+	echo "[PSCALE] Allowing http access"
+	ssh ${pscale_endpoint} isi s3 global settings modify --https-only=false
 	echo "[PSCALE] Creating roles and adding privileges"
 	ssh ${pscale_endpoint} isi auth roles create --name=${pscale_vault_role}
 	ssh ${pscale_endpoint} isi auth roles modify VaultMgr --add-priv=ISI_PRIV_S3
@@ -604,8 +621,8 @@ function create_pscale_users_and_groups() {
 	ssh ${pscale_endpoint} isi auth users create s3user1 --enabled=True
 	ssh ${pscale_endpoint} isi s3 buckets create s3user1bucket /ifs/home/s3user1 --owner=s3user1
 	echo "[PSCALE] Create dynamic user bucket"
-	ssh ${pscale_endpoint} isi s3 buckets create --create-path --name="s3-dynamic" --path=/ifs/s3-dynamic --owner=root
-	ssh ${pscale_endpoint} isi s3 buckets modify s3-dynamic --add-ace="name=Backup Operators,type=group,perm=full_control"
+	ssh ${pscale_endpoint} isi s3 buckets create --create-path --name=s3-dynamic --path=/ifs/s3-dynamic --owner=root
+	ssh ${pscale_endpoint} isi s3 buckets modify s3-dynamic --add-ace=\"name=Backup Operators,type=group,perm=full_control\"
 }
 
 function get_pscale_predefined() {
@@ -651,14 +668,14 @@ case $1 in
 		logout_ecs
 		register_ecs_plugin
 		config_ecs_plugin
-		config_ecs_demo
 
 		generate_ssh_key_pair
 		create_pscale_users_and_groups
 		register_pscale_plugin
 		config_pscale_plugin
-		#config_pscale_demo
-		
+
+		config_ecs_demo
+		config_pscale_demo
 		install_env
 		;;
 	install)
@@ -758,7 +775,7 @@ case $1 in
 	get_pscale_dynamic)
 		if [[ $2 = "" ]]; then
 			echo "Please provide a dynamic role name as an option"
-			echo "e.g. ${pscale_dynamic_role}"
+			echo "e.g. s3dynamic"
 		else
 			get_pscale_dynamic $2
 		fi
