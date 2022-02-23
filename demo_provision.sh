@@ -71,8 +71,8 @@ ecs_plugin_name="${ECS_PLUGIN_NAME:=vault-plugin-secrets-objectscale}"
 ecs_vault_endpoint="${ECS_VAULT_ENDPOINT:=objectscale}"
 pscale_endpoint="${PSCALE_ENDPOINT:=192.168.1.21}"
 pscale_mgmt_port="${PSCALE_MGMT_PORT:=8080}"
-pscale_data_endpoint="${PSCALE_DATA_ENDPOINT:=https://192.168.1.21}"
-pscale_data_port="${PSCALE_DATA_PORT:=9021}"
+pscale_data_endpoint="${PSCALE_DATA_ENDPOINT:=http://192.168.1.21}"
+pscale_data_port="${PSCALE_DATA_PORT:=9020}"
 pscale_plugin_ver="${PSCALE_PLUGIN_VER:=0.3.3}"
 pscale_plugin_name="${PSCALE_PLUGIN_NAME:=vault-plugin-secrets-onefs}"
 pscale_vault_endpoint="${PSCALE_VAULT_ENDPOINT:=pscale}"
@@ -107,7 +107,7 @@ pscale_vault_password="${PSCALE_VAULT_PASSWORD:=isasecret}"
 pscale_vault_home_dir="${PSCALE_VAULT_HOME_DIR:=/ifs/home/vault}"
 pscale_vault_group="${PSCALE_VAULT_GROUP:=vault}"
 pscale_vault_role="${PSCALE_VAULT_ROLE:=VaultMgr}"
-pscale_dynamic_role="${PSCALE_DYNAMIC_ROLE:=dynuser}"
+pscale_dynamic_role="${PSCALE_DYNAMIC_ROLE:=s3-dynamic}"
 
 #======================================================================
 #
@@ -589,13 +589,13 @@ function config_pscale_plugin() {
 
 function config_pscale_demo() {
 	vault write ${pscale_vault_endpoint}/roles/predefined/s3user1 ttl=${vault_default_expire}
-	vault write ${pscale_vault_endpoint}/roles/dynamic/s3dynamic ttl=${vault_default_expire} group="Backup Operators" bucket="s3-dynamic" access-zone="System"
+	vault write ${pscale_vault_endpoint}/roles/dynamic/${pscale_dynamic_role} ttl=${vault_default_expire} group="Backup Operators" bucket="${pscale_dynamic_role}" access-zone="System"
 	echo "Demo endpoints configured"
 	echo "Usable endpoints"
 	echo "    # Rotate access key and secret"
 	echo "    ${pscale_vault_endpoint}/creds/predefined/s3user1"
 	echo "    # Dynamically created S3 user"
-	echo "    ${pscale_vault_endpoint}/creds/dynamic/s3dynamic"
+	echo "    ${pscale_vault_endpoint}/creds/dynamic/${pscale_dynamic_role}"
 	echo ""
 	echo "Example:"
 	echo "  vault read ${pscale_vault_endpoint}/creds/predefined/s3user1"
@@ -621,8 +621,8 @@ function create_pscale_users_and_groups() {
 	ssh ${pscale_endpoint} isi auth users create s3user1 --enabled=True
 	ssh ${pscale_endpoint} isi s3 buckets create s3user1bucket /ifs/home/s3user1 --owner=s3user1
 	echo "[PSCALE] Create dynamic user bucket"
-	ssh ${pscale_endpoint} isi s3 buckets create --create-path --name=s3-dynamic --path=/ifs/s3-dynamic --owner=root
-	ssh ${pscale_endpoint} isi s3 buckets modify s3-dynamic --add-ace=\"name=Backup Operators,type=group,perm=full_control\"
+	ssh ${pscale_endpoint} isi s3 buckets create --create-path --name=${pscale_dynamic_role} --path=/ifs/${pscale_dynamic_role} --owner=root
+	ssh ${pscale_endpoint} isi s3 buckets modify ${pscale_dynamic_role} --add-ace=\"name=Backup Operators,type=group,perm=full_control\"
 }
 
 function get_pscale_predefined() {
@@ -775,7 +775,7 @@ case $1 in
 	get_pscale_dynamic)
 		if [[ $2 = "" ]]; then
 			echo "Please provide a dynamic role name as an option"
-			echo "e.g. s3dynamic"
+			echo "e.g. ${pscale_dynamic_role}"
 		else
 			get_pscale_dynamic $2
 		fi
