@@ -117,7 +117,9 @@ pscale_dynamic_role="${PSCALE_DYNAMIC_ROLE:=s3-dynamic}"
 function install_packages() {
 	# Install extra packages
 	echo "Installing additional required packages"
-	yum install -y yum-utils awscli perl-Digest-HMAC sshpass
+	yum install -y yum-utils python3 perl-Digest-HMAC sshpass
+	python3 -m pip install -U pip
+	pip3 install awscli
 	yum-config-manager --add-repo https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo
 	yum install -y ${vault_ver}
 	mkdir /opt/vault/plugins
@@ -603,7 +605,7 @@ function config_pscale_demo() {
 
 function create_pscale_users_and_groups() {
 	echo "[PSCALE] Allowing http access"
-	ssh ${pscale_endpoint} isi s3 global settings modify --https-only=false
+	ssh ${pscale_endpoint} isi s3 settings global modify --https-only=false
 	echo "[PSCALE] Creating roles and adding privileges"
 	ssh ${pscale_endpoint} isi auth roles create --name=${pscale_vault_role}
 	ssh ${pscale_endpoint} isi auth roles modify VaultMgr --add-priv=ISI_PRIV_S3

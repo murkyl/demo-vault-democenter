@@ -17,6 +17,12 @@ This demonstration environment is based on the Dell Technologies Demo Center. Th
 
 Run the following commands to download and setup the demo:
 
+Clean up the Yum package cache due to very old entries in the cache causing problems
+```bash
+yum clean all
+rm -rf /var/cache/yum/*
+```
+
 ```bash
 wget -N https://raw.githubusercontent.com/murkyl/demo-vault-democenter/main/demo_provision.sh
 ```
